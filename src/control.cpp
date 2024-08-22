@@ -812,8 +812,8 @@ void Control::runSession(struct gui *gui) {
       if (use_gui) {
         update_spike_sums(ts, onsetCS, onsetCS + csLength);
         // Update gui main loop if any events are pending.
-        if (gtk_events_pending())
-          gtk_main_iteration();
+        if (g_main_context_pending(NULL)) // gtk_events_pending() depreciated  #mm
+          g_main_context_iteration(NULL, TRUE); // gtk_main_iteration() depreciated #mm
       }
     }
     end = omp_get_wtime();
@@ -829,8 +829,8 @@ void Control::runSession(struct gui *gui) {
       if (run_state == IN_RUN_PAUSE) {
         LOG_DEBUG("Simulation is paused at end of trial %d.", trial + 1);
         while (run_state == IN_RUN_PAUSE) {
-          if (gtk_events_pending())
-            gtk_main_iteration();
+          if (g_main_context_pending(NULL)) // gtk_events_pending() depreciated #mm
+            g_main_context_iteration(NULL, TRUE); // gtk_main_iteration() depreciated #mm
         }
         LOG_DEBUG("Continuing...");
       }

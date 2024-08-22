@@ -64,9 +64,9 @@ private:
   int randSeed = 3;
   float fracCS = 0.01;
   float fracColl = 0.02;
-  float bgFreqMin = 10.0;
+  float bgFreqMin = 1.0; // was 10.0 #mm
   float csFreqMin = 100.0;
-  float bgFreqMax = 30.0;
+  float bgFreqMax = 55.0; // was 30.0 #mm
   float csFreqMax = 110.0;
 
   /* poisson spike generator vars */
