@@ -28,6 +28,6 @@
       ]
    },
    "session": [
-      {"isi_500_paired_trial": 50}
+      {"isi_500_paired_trial": 200}
    ]
 }

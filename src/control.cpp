@@ -1,13 +1,16 @@
 #include <gtk/gtk.h>
 #include <iomanip>
 #include <sys/stat.h> // mkdir (POSIX ONLY)
-
 #include "array_util.h"
 #include "control.h"
 #include "file_parse.h"
 #include "gui.h" /* tenuous inclide at best :pogO: */
 #include "logger.h"
 #include "red_nucleus.h"
+//#include<iostream>
+//#include<fstream>
+
+/* changes  */
 
 Control::Control(parsed_commandline &p_cl) {
   use_gui = (p_cl.vis_mode == "GUI") ? true : false;
@@ -72,6 +75,7 @@ Control::~Control() {
     delete_pc_crs();
   if (spike_sums_initialized)
     delete_spike_sums();
+
 }
 
 void Control::build_sim() {
@@ -113,6 +117,7 @@ void Control::initialize_session(std::string sess_file) {
   LOG_DEBUG("Session initialized.");
 }
 
+
 /**
  *  @details The order of what we read and when matters: connectivity params,
  *  activity params, then the simulation state are written to file in that
@@ -138,6 +143,17 @@ void Control::init_sim(std::string in_sim_filename) {
   sim_file_buf.close();
   sim_initialized = true;
   LOG_DEBUG("Simulation initialized.");
+
+/* Heap arrays to store spike times for newRasters */
+  
+  mfNewRasters = new int16_t[mfSize]();
+  goNewRasters = new int16_t[goSize]();
+  bcNewRasters = new int16_t[bcSize]();
+  scNewRasters = new int16_t[scSize]();
+  pcNewRasters = new int16_t[pcSize]();
+  ncNewRasters = new int16_t[ncSize]();
+  ioNewRasters = new int16_t[ioSize]();
+  grNewRasters = new int32_t[grSize]();
 }
 
 /**
@@ -585,6 +601,7 @@ void Control::create_raster_filenames(std::map<std::string, bool> &rast_map) {
     for (uint32_t i = 0; i < NUM_CELL_TYPES; i++) {
       if (rast_map[CELL_IDS[i]] || CELL_IDS[i] == "NC" || use_gui) {
         rf_names[i] = data_out_path + "/" + data_out_base_name + RAST_EXT[i];
+        std::cout << rf_names[i] << std::endl;
       }
     }
     raster_filenames_created = true;
@@ -815,6 +832,8 @@ void Control::runSession(struct gui *gui) {
         if (g_main_context_pending(NULL)) // gtk_events_pending() depreciated  #mm
           g_main_context_iteration(NULL, TRUE); // gtk_main_iteration() depreciated #mm
       }
+      int16_t x = static_cast<int16_t>(ts);
+      newRasters(0,x);
     }
     end = omp_get_wtime();
     LOG_INFO("'%s' took %0.2fs", trialName.c_str(), end - start);
@@ -837,10 +856,12 @@ void Control::runSession(struct gui *gui) {
       reset_spike_sums();
     } else {
       // save gr rasters into new file every trial
-      save_gr_rasters_at_trial_to_file(trial);
+      // save_gr_rasters_at_trial_to_file(trial);
       // save_pfpc_weights_at_trial_to_file(trial);
     }
-    trial++;
+    int16_t x = static_cast<int16_t>(trial);
+    newRasters(1,x);
+    trial ++;
   }
   trial--; // setting so that is valid for drawing go rasters after a sim
   if (run_state == NOT_IN_RUN)
@@ -855,7 +876,7 @@ void Control::runSession(struct gui *gui) {
                    BUN_VIZ_MS_MEASURE, BUN_VIZ_MS_PRE_CS, msPreCS, msMeasure);
   if (!use_gui) { // go ahead and save everything
                   // if we're not in the gui.
-    save_rasters_no_gr();
+    //save_rasters_no_gr();
     save_psths();
     save_pfpc_weights_to_file();
     save_mfdcn_weights_to_file();
@@ -1103,6 +1124,165 @@ void Control::fill_rasters(uint32_t raster_counter, uint32_t psth_counter) {
     }
   }
 }
+void Control::newRasters(int16_t task, int16_t bin){
+  if (task == 0){      //write spikes to list for this time bin
+		for (uint32_t j = 0;j<NUM_CELL_TYPES;j++){
+      if (!rf_names[j].empty()) {  // these rasters are being saved
+        switch (j) {
+          case 0:  //mfs
+              mfNewRasters[mfCount] = int16_t(-1);
+              mfNewRasters[mfCount+1] = bin;
+              mfCount += 2;
+            for (int16_t i = 0;i<rast_cell_nums[0];i++){
+              if (cell_spikes[0][i]){
+                  mfNewRasters[mfCount]=i;
+                  mfCount +=1;	
+              }
+            }
+            break;
+          case 1: // granule cells 
+            grNewRasters[grCount] = int32_t(-1);
+            grNewRasters[grCount+1] = static_cast<int32_t>(bin);
+            grCount += 2;
+            for (int32_t i =0;i<rast_cell_nums[1];i++){
+              if (cell_spikes[1][i]){
+                grNewRasters[grCount]=i;
+                grCount +=1;	
+              }	
+            }
+            break;
+          case 2:  // golgi cells
+            goNewRasters[goCount] = -1;
+            goNewRasters[goCount+1] = bin;
+            goCount += 2;
+            for (int16_t i =0;i<rast_cell_nums[2];i++){
+              if (cell_spikes[2][i]){
+                goNewRasters[goCount]=i;
+                goCount +=1;	
+              }
+            }
+            break;
+          case 3: // basket cells
+            bcNewRasters[bcCount] = -1;
+            bcNewRasters[bcCount+1] = bin;
+            bcCount += 2;
+            for (int16_t i =0;i<rast_cell_nums[3];i++){
+              if (cell_spikes[3][i]){
+                bcNewRasters[bcCount]=i;
+                bcCount +=1;	
+              }
+            }	
+            break;
+          case 4: // stellate cells
+            scNewRasters[scCount] = -1;
+            scNewRasters[scCount+1] = bin;
+            scCount += 2;
+            for (int16_t i =0;i<rast_cell_nums[4];i++){
+              if (cell_spikes[4][i]){
+                scNewRasters[scCount]=i;
+                scCount +=1;	
+              }
+            }	
+            break;
+          case 5: // Purkinje cells
+            pcNewRasters[pcCount] = -1;
+            pcNewRasters[pcCount+1] = bin;
+            pcCount += 2;
+            for (int16_t i =0;i<rast_cell_nums[5];i++){
+              if (cell_spikes[5][i]){
+                pcNewRasters[pcCount]=i;
+                pcCount +=1;	
+              }	
+            }
+            break;
+          case 6: // IO
+            ioNewRasters[ioCount] = -1;
+            ioNewRasters[ioCount+1] = bin;
+            ioCount += 2;
+            for (int16_t i =0;i<rast_cell_nums[6];i++){
+              if (cell_spikes[6][i]){
+                ioNewRasters[ioCount]=i;
+                ioCount +=1;	
+              }	
+            }
+            break;
+          case 7: // Nucleus cells
+            ncNewRasters[ncCount] = int16_t(-1);
+            ncNewRasters[ncCount+1] = bin;
+            ncCount += 2;
+            for (int16_t i =0;i<rast_cell_nums[7];i++){
+              if (cell_spikes[7][i]){
+                ncNewRasters[ncCount]=i;
+                ncCount +=1;	
+              }	
+            }  
+            break;
+        } // end of switch
+      } // end these cells are being saved
+    } // end of for loop through NUM_CELL_TYPES
+  } // end of task == 0
+  if (task == 1){ // end of trial, time to save files
+    int16_t temp16_1;
+    int16_t temp16_2;
+    int32_t temp32_1;
+    int32_t temp32_2;
+    for (uint32_t j = 0;j<NUM_CELL_TYPES;j++){
+
+      if (!rf_names[j].empty()) {  // these rasters are being saved
+        std::ofstream outFile(rf_names[j], std::ios::binary | std::ios::app);
+        temp16_1 = -2;
+        temp32_1 = -2;
+        temp16_2 = bin;  
+        temp32_2 = static_cast<int32_t>(bin);                       // bin in this case is the current trial
+        if (j != 1){
+          outFile.write(reinterpret_cast<const char*>(&temp16_1), sizeof(temp16_1));
+          outFile.write(reinterpret_cast<const char*>(&temp16_2), sizeof(temp16_2));
+        }
+        if (j == 1){
+          outFile.write(reinterpret_cast<const char*>(&temp32_1), sizeof(temp32_1));
+          outFile.write(reinterpret_cast<const char*>(&temp32_2), sizeof(temp32_2));
+        }
+        switch (j) {
+          case 0:  //mfs
+            outFile.write(reinterpret_cast<const char*>(&mfNewRasters[0]), sizeof(int16_t)*mfCount);
+            break;
+          case 1: // granule cells 
+            outFile.write(reinterpret_cast<const char*>(&grNewRasters[0]), sizeof(int32_t)*grCount);
+            break;
+          case 2:  // golgi cells
+            outFile.write(reinterpret_cast<const char*>(&goNewRasters[0]), sizeof(int16_t)*goCount);
+            break;
+          case 3: // basket cells
+            outFile.write(reinterpret_cast<const char*>(&bcNewRasters[0]), sizeof(int16_t)*bcCount);
+            break;
+          case 4: // stellate cells
+            outFile.write(reinterpret_cast<const char*>(&scNewRasters[0]), sizeof(int16_t)*scCount);
+            break;
+          case 5: // Purkinje cells
+            outFile.write(reinterpret_cast<const char*>(&pcNewRasters[0]), sizeof(int16_t)*pcCount);
+            break;
+          case 6: // IO
+            outFile.write(reinterpret_cast<const char*>(&ioNewRasters[0]), sizeof(int16_t)*ioCount);
+            break;
+          case 7: // Nucleus cells
+            outFile.write(reinterpret_cast<const char*>(&ncNewRasters[0]), sizeof(int16_t)*ncCount);
+            break;
+        } // end of switch
+        outFile.close();
+      } // end these cells are being saved
+    } // end of for loop through NUM_CELL_TYPES
+        mfCount = 0;
+        goCount = 0;
+        grCount = 0;
+        bcCount = 0;
+        scCount = 0;
+        pcCount = 0;
+        ncCount = 0;
+        ioCount = 0;
+  } // end of elif task == 1
+  
+} // end of newRasters
+
 
 void Control::fill_psths(uint32_t psth_counter) {
   for (uint32_t i = 0; i < NUM_CELL_TYPES; i++) {
@@ -1123,13 +1303,23 @@ void Control::fill_psths(uint32_t psth_counter) {
 void Control::delete_rasters() {
   for (uint32_t i = 0; i < NUM_CELL_TYPES; i++) {
     if (!rf_names[i].empty() || use_gui)
-      delete2DArray<uint8_t>(rasters[i]);
+      delete2DArray<uint8_t>(rasters[i]);  
   }
+  /* Arrays to store spike times for newRasters */
+  delete[] mfNewRasters;
+  delete[] goNewRasters;
+  delete[] bcNewRasters;
+  delete[] scNewRasters;
+  delete[] pcNewRasters;
+  delete[] ncNewRasters;
+  delete[] ioNewRasters;
+  delete[] grNewRasters;
   if (use_gui) {
     delete2DArray<float>(pc_vm_raster);
     delete2DArray<float>(nc_vm_raster);
     delete2DArray<float>(io_vm_raster);
   }
+  
 }
 
 void Control::delete_psths() {

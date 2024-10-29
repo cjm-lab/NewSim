@@ -510,10 +510,12 @@ void MZone::calcIOActivities() {
     // this looks like some sort of fudge factor to me
     gNCSum = 1.5 * gNCSum / 3.1;
 
-    // update the voltage. notice the errDrive (unconditioned stimulus)
+    // update the voltage. notice the errDrive (unconditioned stimulus) error drive was set too high
+    // should also be converted to a conductance rather than a jump in voltage!
+   
     as->vIO[i] += gLeakIO * (eLeakIO - as->vIO[i]) +
                   gNCSum * (eNCtoIO - as->vIO[i]) + as->vCoupleIO[i] +
-                  as->errDrive + gNoise;
+                  (as->errDrive/1.3) + gNoise;
     // update voltage threshold
     as->threshIO[i] += threshDecIO * (threshRestIO - as->threshIO[i]);
 

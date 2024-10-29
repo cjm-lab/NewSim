@@ -83,6 +83,6 @@ void RedNucleus::calc_crs_from(const uint8_t **nc_rasters, float **crs,
 
 
   //norm_2d_array_ip<float>(crs, num_trials, bun_viz_ts_per_trial);
-//  mult_2d_array_by_val_ip<float>(crs, num_trials, bun_viz_ts_per_trial, 592642583.3);//to make max CR around 6.0
+  mult_2d_array_by_val_ip<float>(crs, num_trials, bun_viz_ts_per_trial, .08);//to make max CR around 6.0
  
 }

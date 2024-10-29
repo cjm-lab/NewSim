@@ -1,6 +1,4 @@
 /** @file control.h
- *  @brief Acts as the main controller of actions related to building
- *  simulations (i.e. establishing connectivity) in addition to running
  *  trials on the built simulation.
  *
  *  @author Sean Gallogly (sean.gallo@austin.utexas.edu)
@@ -227,6 +225,38 @@ public:
   uint32_t **psths[NUM_CELL_TYPES];
   float **pc_crs;
 
+ 
+  /* Arrays to store spike times for newRasters */
+
+  const uint32_t mfSize = 1048576;
+  const uint32_t goSize = 1048576;
+  const uint32_t bcSize = 32769;
+  const uint32_t scSize = 262144;
+  const uint32_t pcSize = 133768;
+  const uint32_t ncSize = 16384;
+  const uint32_t ioSize = 512;
+  const uint32_t grSize = 16777216;
+
+  int16_t* mfNewRasters;
+  int16_t* goNewRasters;
+  int16_t* bcNewRasters;
+  int16_t* scNewRasters;
+  int16_t* pcNewRasters;
+  int16_t* ncNewRasters;
+  int16_t* ioNewRasters;
+  int32_t* grNewRasters;
+
+  uint32_t mfCount = 0;
+  uint32_t goCount = 0;
+  uint32_t bcCount = 0;
+  uint32_t scCount = 0;
+  uint32_t pcCount = 0;
+  uint32_t ncCount = 0;
+  uint32_t ioCount = 0;
+  uint32_t grCount = 0;
+  
+ 
+
   /* save functions for time series data (srry I need them here for the gui */
   std::function<void()> raster_save_funcs[NUM_CELL_TYPES];
   std::function<void()> psth_save_funcs[NUM_CELL_TYPES];
@@ -392,6 +422,7 @@ public:
   void initialize_cell_spikes();
   void initialize_spike_sums();
   void initialize_rasters();
+  void newRasters(int16_t, int16_t);
   void initialize_psths();
   void initialize_pc_crs();
 

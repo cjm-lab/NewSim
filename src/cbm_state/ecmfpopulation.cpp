@@ -10,7 +10,7 @@
 #include "ecmfpopulation.h"
 #include "file_utility.h"
 #include "logger.h"
-// Changed MF background firing rates 1.0 to 55.0
+// Changed MF background firing rates 1.0 to 55.0  I change them back to 10 and 30
 
 ECMFPopulation::ECMFPopulation() {
 
