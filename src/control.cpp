@@ -761,6 +761,7 @@ void Control::runSession(struct gui *gui) {
   trial = 0;
   raster_counter = 0;
   // trial loop
+  int changeMF = 0;
   while (trial < td.num_trials && run_state != NOT_IN_RUN) {
     std::string trialName = td.trial_names[trial];
 
@@ -778,16 +779,22 @@ void Control::runSession(struct gui *gui) {
 
     LOG_INFO("Trial number: %d", trial + 1);
     start = omp_get_wtime();
+    
     for (uint32_t ts = 0; ts < trialTime; ts++) {
       if (useUS == 1 && ts == onsetUS) // deliver the US
       {
         simCore->updateErrDrive(0, 0.3);
       }
       // deliver cs if specified at cmdline and within cs duration
+      changeMF = 0;
+      if (useCS && (ts == onsetCS || ts == onsetCS + csLength)) {
+        changeMF = 1;
+      }
       if (useCS && ts >= onsetCS && ts < onsetCS + csLength) {
-        mfs->calcGammaActivity(CS, simCore->getMZoneList());
+        
+        mfs->calcGammaActivity(CS, simCore->getMZoneList(),changeMF);
       } else { // background mf activity
-        mfs->calcGammaActivity(BKGD, simCore->getMZoneList());
+        mfs->calcGammaActivity(BKGD, simCore->getMZoneList(),changeMF);
       }
 
       simCore->updateMFInput(mfAP);

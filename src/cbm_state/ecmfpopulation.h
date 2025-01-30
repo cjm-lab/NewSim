@@ -34,14 +34,14 @@ public:
   void writeToFile(std::fstream &outfile);
   void writeMFLabels(std::string labelFileName);
 
-  const float *getBGFreq();
-  const float *getCSFreq();
+  const u_int16_t *getBGFreq();
+  const u_int16_t *getCSFreq();
 
   const bool *getCSIds();
 
   const bool *getCollIds();
 
-  void calcGammaActivity(enum mf_type type, MZone **mZoneList);
+  void calcGammaActivity(enum mf_type type, MZone **mZoneList, int change);
   const uint8_t *getAPs();
 
 private:
@@ -54,8 +54,8 @@ private:
   void prepCollaterals(int rSeed);
   /* frequency population variables */
 
-  float *mfFreqBG;
-  float *mfFreqCS;
+  u_int16_t *mfFreqBG;
+  u_int16_t *mfFreqCS;
 
   bool *isCS;
   bool *isAny;
@@ -64,10 +64,10 @@ private:
   int randSeed = 3;
   float fracCS = 0.03;
   float fracColl = 0.02;
-  float bgFreqMin = 5.0; // was 10.0 #mm
-  float csFreqMin = 100.0;
-  float bgFreqMax = 40.0; // was 35.0 #mm
-  float csFreqMax = 110.0;
+  u_int16_t bgFreqMin = 5; // was 10.0 #mm
+  u_int16_t csFreqMin = 90;
+  u_int16_t bgFreqMax = 40; // was 35.0 #mm
+  u_int16_t csFreqMax = 100;
 
   /* poisson spike generator vars */
   uint32_t nThreads = 1;   // hard-coded
@@ -83,7 +83,8 @@ private:
   CRandomSFMT0 **randGens;   // diff randgens per thread, if use openmp
   std::normal_distribution<float> *normDist; // for noise
   std::mt19937 *noiseRandGen;                // for noise
-
+  u_int32_t *MFisiDistribution;
+  u_int32_t *MFisi;
   uint8_t *aps;
   uint32_t *apBufs;
 
