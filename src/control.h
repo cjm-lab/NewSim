@@ -26,6 +26,7 @@
 #include "info_file.h"
 #include "innetactivitystate.h"
 #include "innetconnectivitystate.h"
+#include "mzone.h"
 
 // TODO: place in a common place, as gui uses a constant like this too
 #define NUM_CELL_TYPES 8
@@ -234,7 +235,7 @@ public:
   const uint32_t scSize = 262144;
   const uint32_t pcSize = 133768;
   const uint32_t ncSize = 16384;
-  const uint32_t ioSize = 512;
+  const uint32_t ioSize = 16384;
   const uint32_t grSize = 16777216;
 
   int16_t* mfNewRasters;

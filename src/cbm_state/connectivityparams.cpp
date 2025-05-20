@@ -194,9 +194,9 @@ float std_dev_go_to_gl_s = 100.0;  // sagittal
 
 // innet
 float eLeakGO = -70.0;
-float threshRestGO = -34.0;
+float threshRestGO = -34.0 * GOThreshHomeo;
 float eLeakGR = -65.0;
-float threshRestGR = -40.0;
+float threshRestGR = -40.0 * grThreshHomeo;
 
 // mzone
 float eLeakSC = -60.0;
@@ -211,4 +211,14 @@ float threshRestIO = -57.4;
 float eLeakNC = -65.0;
 float threshRestNC = -72.0;
 float initSynWofMFtoNC = 0.00085;
+
+// Homeostatic platicity parameter multiplyer variables
+
+float MFtogrHomeo = 1.0;
+float MFtoGOHomeo = 1.0;
+float grtoGOHomeo = 1.0;
+float GotogrHomeo = 1.0;
+float GotoGoHomeo = 1.0;
+float grThreshHomeo = 1.0;
+float GOThreshHomeo = 1.0;
 

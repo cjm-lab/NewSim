@@ -35,7 +35,7 @@ private:
 
 RedNucleus::RedNucleus(uint32_t num_inputs) {
   g_leak = 0.025 / (6.0 - msPerTimeStep);
-  g_e_tau = 15.0;
+  g_e_tau = 12.5;  // mm was 15.0, 10 no good
   g_e_decay = exp(-msPerTimeStep / g_e_tau);
   e_leak = 0.0;
   v_m = e_leak;

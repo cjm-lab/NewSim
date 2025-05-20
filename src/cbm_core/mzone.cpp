@@ -393,7 +393,7 @@ void MZone::cpyPFPCWeightStatesCUDA() {
 }
 
 void MZone::setErrDrive(float errDriveRelative) {
-  as->errDrive = errDriveRelative * maxExtIncVIO;
+  as->errDrive = errDriveRelative;
 }
 
 void MZone::updateMFActivities(const uint8_t *actMF) { apMFInput = actMF; }
@@ -482,53 +482,71 @@ void MZone::calcBCActivities() {
 
 void MZone::calcIOActivities() {
   // next few lines used to add a little noise to voltage computation
+  //std::cout << "beginning of calcIO\n";
   srand(clock());
   float r = static_cast<float>(rand()) / static_cast<float>(RAND_MAX);
   float gNoise = (r - 0.5) * 2.0;
-
-  for (int i = 0; i < num_io; i++) {
+  //std::cout << "before i for loop\n";
+  for (int i = 0; i < num_io; i++) {                            
     float gNCSum;
     gNCSum = 0;
-
+    //std::cout << "before j for loop\n";
     for (int j = 0; j < num_p_io_from_nc_to_io; j++) {
       // update nc -> io input conductance. has this funky exponential
       // dependency
+      //std::cout << "A\n";
       as->gNCIO[i * num_p_io_from_nc_to_io + j] *= exp(
           -msPerTimeStep /
           (-gDecTSofNCtoIO * exp(-as->gNCIO[i * num_p_io_from_nc_to_io + j] /
                                  gDecTTofNCtoIO) +
            gDecT0ofNCtoIO));
       // another exponential dependence on...itself?
+      //std::cout << "B\n";
       as->gNCIO[i * num_p_io_from_nc_to_io + j] +=
           as->inputNCIO[i * num_p_io_from_nc_to_io + j] * gIncNCtoIO *
           exp(-as->gNCIO[i * num_p_io_from_nc_to_io + j] / gIncTauNCtoIO);
       // update over input nc sum
+      //std::cout << "C\n";
       gNCSum += as->gNCIO[i * num_p_io_from_nc_to_io + j];
       // reset input nc -> io
+      //std::cout << "D\n";
       as->inputNCIO[i * num_p_io_from_nc_to_io + j] = 0;
     }
-    // this looks like some sort of fudge factor to me
-    gNCSum = 1.5 * gNCSum / 3.1;
-
+    //std::cout << "E\n";
+    // Appears to be adjustment to NC inputs to IO Mike used this to adjust NC to IO
+    // 2/20/25  values were gNCSum = 1.5 * gNCSum / 3.1;  equivalent to * .4839
+    gNCSum *= .75; //1.5 * gNCSum / 3.1;
+    //std::cout << "F\n";
     // update the voltage. notice the errDrive (unconditioned stimulus) error drive was set too high
     // should also be converted to a conductance rather than a jump in voltage!
-   
-    as->vIO[i] += gLeakIO * (eLeakIO - as->vIO[i]) +
-                  gNCSum * (eNCtoIO - as->vIO[i]) + as->vCoupleIO[i] +
-                  (as->errDrive/1.3) + gNoise;
+    if (as->errDrive !=0){
+      as->gUS[i] = as->errDrive*1.5;
+      }
+    //std::cout << "G\n";
+    as->gUS[i] *= .904;  // decay the gUS with tau = 10 ms
+    //std::cout << "H\n";
+    as->vIO[i] += gLeakIO * (eLeakIO - as->vIO[i]) + gNCSum * (eNCtoIO - as->vIO[i]) + as->vCoupleIO[i] +
+                  (as->gUS[i]*(0-as->vIO[i])) + gNoise; // gUS is a conductance with E = zero mV
+    //std::cout << "M\n";
+    // as->vIO[i] += gLeakIO * (eLeakIO - as->vIO[i]) +
+    //              gNCSum * (eNCtoIO - as->vIO[i]) + as->vCoupleIO[i] +
+    //              (as->errDrive/1.3) + gNoise;
     // update voltage threshold
     as->threshIO[i] += threshDecIO * (threshRestIO - as->threshIO[i]);
-
+    //std::cout << "N\n";
     // did we spike or not?
     as->apIO[i] = as->vIO[i] > as->threshIO[i];
+    //std::cout << "P\n";
     // push spike info to spike buffer
     as->apBufIO[i] = (as->apBufIO[i] << 1) | (as->apIO[i] * 0x00000001);
-
+    //std::cout << "R\n";
     // limit thresh to max thresh if we spiked
     as->threshIO[i] =
         as->apIO[i] * threshMaxIO + (1 - as->apIO[i]) * as->threshIO[i];
   }
+  //std::cout << "S\n";
   as->errDrive = 0; // honestly not sure why we have to reset this
+  //std::cout << "end\n";
 }
 
 void MZone::calcNCActivities() {
@@ -654,10 +672,12 @@ void MZone::updateIOOut() {
     // update the timer for this io for this time step
     // ie counts how much time has elapsed since last io spike,
     // else resets to tsLTPEndAPIO if did spike
+    //std::cout << "beginning of updateIOOut\n";
     as->pfPCPlastTimerIO[i] =
         (1 - as->apIO[i]) * (as->pfPCPlastTimerIO[i] + 1) +
         as->apIO[i] * tsLTPEndAPIO;
     as->vCoupleIO[i] = 0;
+    //std::cout << "before for loop\n";
     for (int j = 0; j < num_p_io_in_io_to_io; j++) {
       // update io <-> io coupling voltage
       as->vCoupleIO[i] +=
@@ -735,6 +755,7 @@ void MZone::updateMFNCSyn(const uint8_t *histMF, uint32_t t) {
   }
 
   for (int i = 0; i < num_nc; i++) {
+    // std::cout << t << " " << i << "\n";
     for (int j = 0; j < num_p_nc_from_mf_to_nc; j++) {
       // update the size of the weight change dependent on mf history
       // and the ltd and ltp step sizes
@@ -758,7 +779,9 @@ void MZone::updateMFNCSyn(const uint8_t *histMF, uint32_t t) {
       // of a proper mf cell)
       as->mfSynWeightNC[i * num_p_nc_from_mf_to_nc + j] *=
           isTrueMF[cs->pNCfromMFtoNC[i][j]];
+      //std::cout << as->mfSynWeightNC[i * num_p_nc_from_mf_to_nc + j] << " ";    
     }
+    //std::cout << "\n";
   }
 }
 

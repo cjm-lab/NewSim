@@ -89,6 +89,7 @@ void MZoneActivityState::allocateMemory() {
   vIO = std::make_unique<float[]>(num_io);
   vCoupleIO = std::make_unique<float[]>(num_io);
   pfPCPlastTimerIO = std::make_unique<int32_t[]>(num_io);
+  gUS = std::make_unique<float[]>(num_io);
 
   // nucleus cells
   apNC = std::make_unique<uint8_t[]>(num_nc);
@@ -130,6 +131,7 @@ void MZoneActivityState::initializeVals(int randSeed) {
   histPCPopActSum = 0;
   histPCPopActCurBinN = 0;
   pcPopAct = 0;
+  
 
   // IO
   std::fill(vIO.get(), vIO.get() + num_io, eLeakIO);

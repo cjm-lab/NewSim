@@ -781,58 +781,67 @@ void Control::runSession(struct gui *gui) {
     start = omp_get_wtime();
     
     for (uint32_t ts = 0; ts < trialTime; ts++) {
+      //std::cout << "Bin number: " << ts << "\n";
+      
       if (useUS == 1 && ts == onsetUS) // deliver the US
       {
-        simCore->updateErrDrive(0, 0.3);
+        simCore->updateErrDrive(0, .04);
+      }
+      else {
+        simCore->updateErrDrive(0, 0);
       }
       // deliver cs if specified at cmdline and within cs duration
       changeMF = 0;
+      //std::cout << " just before deciding CS onset\n";
       if (useCS && (ts == onsetCS || ts == onsetCS + csLength)) {
         changeMF = 1;
       }
+      //std::cout << " just before deciding US\n";
       if (useCS && ts >= onsetCS && ts < onsetCS + csLength) {
-        
+
         mfs->calcGammaActivity(CS, simCore->getMZoneList(),changeMF);
       } else { // background mf activity
         mfs->calcGammaActivity(BKGD, simCore->getMZoneList(),changeMF);
       }
-
+      //std::cout << "done with CS and US\n";
       simCore->updateMFInput(mfAP);
+      //std::cout << "back from updateMFInputt\n";
       // this is the main simCore function which computes all cell pops'
       // spikes
+      //std::cout << "just before simCore calcActivity\n";
       simCore->calcActivity(spillFrac, pf_pc_plast, mf_nc_plast, useCS, useUS,
                             stp_on);
-
+      //std::cout << "back from calcActivity\n";
       /* collect conductances used to check tuning */
       /* cs is defined wrt msPreCS, so subtract it and add bun_viz on top */
-      if (ts >= onsetCS && ts < onsetCS + csLength) {
-        mfgoG = simCore->getInputNet()->exportgSum_MFGO();
-        grgoG = simCore->getInputNet()->exportgSum_GRGO();
-        goSpks = simCore->getInputNet()->exportAPGO();
+      // if (ts >= onsetCS && ts < onsetCS + csLength) {
+      //   mfgoG = simCore->getInputNet()->exportgSum_MFGO();
+      //   grgoG = simCore->getInputNet()->exportgSum_GRGO();
+      //   goSpks = simCore->getInputNet()->exportAPGO();
 
-        for (int i = 0; i < num_go; i++) {
-          goSpkCounter[i] += goSpks[i];
-          gGRGO_sum += grgoG[i];
-          gMFGO_sum += mfgoG[i];
-        }
-      }
-
+      //   for (int i = 0; i < num_go; i++) {
+      //     goSpkCounter[i] += goSpks[i];
+      //     gGRGO_sum += grgoG[i];
+      //     gMFGO_sum += mfgoG[i];
+      //   }
+      // }
       /* upon offset of CS, report averages of above collected conductances */
-      if (ts == onsetCS + csLength) {
-        countGOSpikes(goSpkCounter);
-        LOG_DEBUG("Mean gGRGO   = %0.4f", gGRGO_sum / (num_go * csLength));
-        LOG_DEBUG("Mean gMFGO   = %0.5f", gMFGO_sum / (num_go * csLength));
-        LOG_DEBUG("GR:MF ratio  = %0.2f", gGRGO_sum / gMFGO_sum);
-      }
+      // if (ts == onsetCS + csLength) {
+      //   countGOSpikes(goSpkCounter);
+      //   LOG_DEBUG("Mean gGRGO   = %0.4f", gGRGO_sum / (num_go * csLength));
+      //   LOG_DEBUG("Mean gMFGO   = %0.5f", gMFGO_sum / (num_go * csLength));
+      //   LOG_DEBUG("GR:MF ratio  = %0.2f", gGRGO_sum / gMFGO_sum);
+      // }
 
       /* data collection */
+      //std::cout << "before fill rasters\n";
       if (ts >= onsetCS - msPreCS && ts < onsetCS - msPreCS + msMeasure) {
         fill_rasters(raster_counter, PSTHCounter);
         fill_psths(PSTHCounter);
         PSTHCounter++;
         raster_counter++;
       }
-
+      //std::cout << "before fill rasters\n";
       if (use_gui) {
         update_spike_sums(ts, onsetCS, onsetCS + csLength);
         // Update gui main loop if any events are pending.
@@ -840,7 +849,9 @@ void Control::runSession(struct gui *gui) {
           g_main_context_iteration(NULL, TRUE); // gtk_main_iteration() depreciated #mm
       }
       int16_t x = static_cast<int16_t>(ts);
+      //std::cout << "just before newRasters that writes spikes to arrays\n";
       newRasters(0,x);
+      //std::cout << "just returned from newRasters task 0\n";
     }
     end = omp_get_wtime();
     LOG_INFO("'%s' took %0.2fs", trialName.c_str(), end - start);
@@ -867,6 +878,7 @@ void Control::runSession(struct gui *gui) {
       // save_pfpc_weights_at_trial_to_file(trial);
     }
     int16_t x = static_cast<int16_t>(trial);
+    //std::cout << "about to call newRasters\n";
     newRasters(1,x);
     trial ++;
   }
@@ -1132,9 +1144,12 @@ void Control::fill_rasters(uint32_t raster_counter, uint32_t psth_counter) {
   }
 }
 void Control::newRasters(int16_t task, int16_t bin){
+  // << "first line of newRasters\n";
   if (task == 0){      //write spikes to list for this time bin
+    //std::cout << " just inside task 0 of newRasters\n";
 		for (uint32_t j = 0;j<NUM_CELL_TYPES;j++){
       if (!rf_names[j].empty()) {  // these rasters are being saved
+        //std::cout << " just switch (which cell type\n";
         switch (j) {
           case 0:  //mfs
               mfNewRasters[mfCount] = int16_t(-1);
@@ -1203,15 +1218,18 @@ void Control::newRasters(int16_t task, int16_t bin){
             }
             break;
           case 6: // IO
+            //std::cout << " case 6 IO neurons\n";
             ioNewRasters[ioCount] = -1;
             ioNewRasters[ioCount+1] = bin;
             ioCount += 2;
+            //std::cout << " starting loop for each IO neruon\n";
             for (int16_t i =0;i<rast_cell_nums[6];i++){
               if (cell_spikes[6][i]){
                 ioNewRasters[ioCount]=i;
                 ioCount +=1;	
               }	
             }
+            //std::cout << " just before break in case 6\n";
             break;
           case 7: // Nucleus cells
             ncNewRasters[ncCount] = int16_t(-1);
@@ -1225,14 +1243,18 @@ void Control::newRasters(int16_t task, int16_t bin){
             }  
             break;
         } // end of switch
+        //std::cout << " end of if about which cells (case)\n";
       } // end these cells are being saved
     } // end of for loop through NUM_CELL_TYPES
+    //std::cout << " just before end of task 0\n";
   } // end of task == 0
+  //std::cout << " task 0 just ended\n";
   if (task == 1){ // end of trial, time to save files
     int16_t temp16_1;
     int16_t temp16_2;
     int32_t temp32_1;
     int32_t temp32_2;
+    //std::cout << "Made it to task 1 \n";
     for (uint32_t j = 0;j<NUM_CELL_TYPES;j++){
 
       if (!rf_names[j].empty()) {  // these rasters are being saved
@@ -1287,7 +1309,7 @@ void Control::newRasters(int16_t task, int16_t bin){
         ncCount = 0;
         ioCount = 0;
   } // end of elif task == 1
-  
+  //std::cout << " after task1 right before newRasters returns\n";
 } // end of newRasters
 
 

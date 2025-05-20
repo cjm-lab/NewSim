@@ -35,8 +35,7 @@ float gIncMFtoGO = 0.0009;
 float gConstGO = 0.0;
 float NMDA_AMPAratioMFGO = 1.3;
 float gDecTauMFtoGONMDA = 30.0;
-float gIncDirectMFtoGR =
-    0.0320; // 0.0265; // float was = 0.0237; // float was = 0.0239;
+float gIncDirectMFtoGR =    0.0320 * MFtogrHomeo; // 0.0265; // float was = 0.0237; // float was = 0.0239;
 float gDirectTauMFtoGR = 0.0;    // very crucial synapse!!!
 float gIncFracSpilloverMFtoGR = 0.2;
 float gSpilloverTauMFtoGR = 15.0;
@@ -102,7 +101,7 @@ float binPlastWeightHigh = 0.7;
 // experimental long term plasticity params
 
 float synLTDStepSizeGRtoPC = -0.00275;
-float synLTPStepSizeGRtoPC = 0.00030556;
+float synLTPStepSizeGRtoPC = 0.000145; ////0.00030556;  145 value for LTDwin 50 ms, 305 for 100 ms LTD win
 float mGluRDecayGO = 0.98;
 float mGluRScaleGO = 0.0;
 float maxExtIncVIO = 30.0;
@@ -112,10 +111,10 @@ float synLTDPCPopActThreshMFtoNC = 12.0;
 float synLTPStepSizeMFtoNC = 5.0e-06;
 float synLTPPCPopActThreshMFtoNC = 2.0;
 float gmaxNMDADecTauMFtoNC = 50.0;
-float msLTDDurationIO = 100.0;
+float msLTDDurationIO = 50.0; ////100.0; to make LTD window 50 ms
 float msLTDStartAPIO = -100.0;
-float msLTPEndAPIO = -100.0;
-float msLTPStartAPIO = 0.0;
+float msLTPEndAPIO = -100.0; 
+float msLTPStartAPIO = -50.0; //// 0.0;to make LTD window 50 ms
 float msPerHistBinGR = 5.0;
 float msPerHistBinMF = 5.0;
 float relPDecT0ofNCtoIO = 78.0;
@@ -152,9 +151,9 @@ float threshMaxPC = -48.0;
 float threshMaxSC = 0.0;
 float weightScale = 1.0;
 float rawGRGOW = 0.0007;
-float rawMFGOW = 0.0042; // 0.0035;
-float gogrW = 0.015;
-float gogoW = 0.0125;
+float rawMFGOW = 0.0042 * MFtoGOHomeo; // 0.0035;
+float gogrW = 0.015 * GotogrHomeo;
+float gogoW = 0.0125 * GotoGoHomeo;
 
 /* derived act params */
 float numTSinMFHist = msPerHistBinMF / msPerTimeStep;
@@ -204,5 +203,5 @@ float gDecPCtoNC = exp(-msPerTimeStep / gDecTauPCtoNC);
 float gLeakNC = rawGLeakNC / (6 - msPerTimeStep);
 float threshDecNC = 1 - exp(-msPerTimeStep / threshDecTauNC);
 float gLeakBC = rawGLeakBC;
-float grgoW = rawGRGOW * weightScale;
+float grgoW = rawGRGOW * weightScale * grtoGOHomeo;
 float mfgoW = rawMFGOW * weightScale;

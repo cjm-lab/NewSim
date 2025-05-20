@@ -62,11 +62,11 @@ private:
   bool *isColl;
 
   int randSeed = 3;
-  float fracCS = 0.03;
+  float fracCS = 0.02;
   float fracColl = 0.02;
   u_int16_t bgFreqMin = 5; // was 10.0 #mm
   u_int16_t csFreqMin = 90;
-  u_int16_t bgFreqMax = 40; // was 35.0 #mm
+  u_int16_t bgFreqMax = 35; // was 35.0 #mm
   u_int16_t csFreqMax = 100;
 
   /* poisson spike generator vars */
@@ -77,7 +77,7 @@ private:
 
   float sPerTS = msPerTimeStep / 1000;
   float noiseSigma = 0;
-  bool turnOnColls = true;
+  bool turnOnColls = false;
 
   CRandomSFMT0 *randSeedGen; // the uber seed
   CRandomSFMT0 **randGens;   // diff randgens per thread, if use openmp

@@ -141,4 +141,12 @@ extern float eLeakNC;
 extern float threshRestNC;
 extern float initSynWofMFtoNC;
 
+extern float MFtogrHomeo;
+extern float MFtoGOHomeo;
+extern float grtoGOHomeo;
+extern float GotogrHomeo;
+extern float GotoGoHomeo;
+extern float grThreshHomeo;
+extern float GOThreshHomeo;
+
 #endif /* CONNECTIVITYPARAMS_H_ */

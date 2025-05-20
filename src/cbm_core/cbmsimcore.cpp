@@ -111,7 +111,7 @@ void CBMSimCore::syncCUDA(std::string title) {
 #endif
   }
 }
-
+//**************************************************************
 void CBMSimCore::calcActivity(float spillFrac, enum plasticity pf_pc_plast,
                               enum plasticity mf_nc_plast, uint32_t use_cs,
                               uint32_t use_us, bool stp_on) {
@@ -221,27 +221,33 @@ void CBMSimCore::calcActivity(float spillFrac, enum plasticity pf_pc_plast,
     zones[i]->updatePCOut();
 
     // compute io activities (host)
+    
     zones[i]->calcIOActivities();
     // update io output variables
+    //std::cout << "before updateIO\n";
     zones[i]->updateIOOut();
-
+    //std::cout << "after updateIO\n";
     // temp solution: by default mfnc plast is GRADED. no other
     // plasticity modes are given for these synapses
     if (mf_nc_plast != OFF) {
       zones[i]->updateMFNCSyn(inputNet->exportHistMF(), curTime);
     }
-
+    
     // update mf -> nc output vars
     zones[i]->updateMFNCOut();
     // compute nc spiking activity
+    
     zones[i]->calcNCActivities();
     // update nc output vars
+   
     zones[i]->updateNCOut();
   }
 
   // reset mf histories, given the current time
   inputNet->resetMFHist(curTime);
+  
 }
+// end of calcActivities
 
 void CBMSimCore::updateMFInput(const uint8_t *mfIn) {
   inputNet->updateMFActivties(mfIn);
@@ -277,7 +283,7 @@ void CBMSimCore::construct(CBMState *state, int *mzoneRSeed, int gpuIndStart,
   int maxNumGPUs;
 
   numZones = state->getNumZones();
-
+  
   cudaGetDeviceCount(&maxNumGPUs);
 
   if (gpuIndStart <= 0) {
@@ -300,6 +306,7 @@ void CBMSimCore::construct(CBMState *state, int *mzoneRSeed, int gpuIndStart,
   LOG_DEBUG("Calculated (?) number of GPUs: %d", numGPUs);
 
   LOG_DEBUG("Initializing cuda streams...");
+  
   initCUDAStreams();
   LOG_DEBUG("Finished initialzing cuda streams.");
 

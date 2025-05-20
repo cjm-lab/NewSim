@@ -94,6 +94,7 @@ public:
   std::unique_ptr<float[]> vIO{nullptr};
   std::unique_ptr<float[]> vCoupleIO{nullptr};
   std::unique_ptr<int32_t[]> pfPCPlastTimerIO{nullptr};
+  std::unique_ptr<float[]> gUS{nullptr};
 
   float errDrive;
 
