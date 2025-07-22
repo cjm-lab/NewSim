@@ -515,12 +515,12 @@ void MZone::calcIOActivities() {
     //std::cout << "E\n";
     // Appears to be adjustment to NC inputs to IO Mike used this to adjust NC to IO
     // 2/20/25  values were gNCSum = 1.5 * gNCSum / 3.1;  equivalent to * .4839
-    gNCSum *= .75; //1.5 * gNCSum / 3.1;
+    gNCSum *= .575; //1.5 * gNCSum / 3.1;
     //std::cout << "F\n";
     // update the voltage. notice the errDrive (unconditioned stimulus) error drive was set too high
     // should also be converted to a conductance rather than a jump in voltage!
     if (as->errDrive !=0){
-      as->gUS[i] = as->errDrive*1.5;
+      as->gUS[i] = as->errDrive*5;
       }
     //std::cout << "G\n";
     as->gUS[i] *= .904;  // decay the gUS with tau = 10 ms
