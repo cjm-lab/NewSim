@@ -91,6 +91,7 @@ InNet::~InNet() {
     cudaSetDevice(i + gpuIndStart);
 
     cudaFree(outputGRGPU[i]);
+    cudaFree(apGRGPU_packed[i]);
     cudaFree(apGRGPU[i]);
     cudaFree(vGRGPU[i]);
     cudaFree(gKCaGRGPU[i]);
@@ -144,6 +145,7 @@ InNet::~InNet() {
   delete[] gISpilloverGPU;
 
   delete[] apBufGRGPU;
+  delete[] apGRGPU_packed;
   delete[] outputGRGPU;
   delete[] apGRGPU;
 
@@ -537,15 +539,7 @@ void InNet::runGRActivitiesCUDA(cudaStream_t **sts, int streamN) {
   }
 }
 
-void InNet::runSumGRGOOutCUDA(cudaStream_t **sts, int streamN) {
-  cudaError_t error;
-  for (int i = 0; i < numGPUs; i++) {
-    error = cudaSetDevice(i + gpuIndStart);
-    callSumGRGOOutKernel(sts[i][streamN], sumGRGOOutNumBlocks,
-                         sumGRGOOutNumGOPerB, updateGRGOOutNumGRRows,
-                         grInputGOGPU[i], grInputGOGPUP[i], grInputGOSumGPU[i]);
-  }
-}
+
 
 void InNet::cpyDepAmpMFHosttoGPUCUDA(cudaStream_t **sts, int streamN) {
   cudaError_t error;
@@ -694,7 +688,7 @@ void InNet::runUpdateGOInGRDynamicSpillCUDA(cudaStream_t **sts, int streamN) {
 #endif
   }
 }
-
+// *** 
 void InNet::runUpdateGROutGOCUDA(cudaStream_t **sts, int streamN) {
   cudaError_t error;
   for (int i = 0; i < numGPUs; i++) {
@@ -709,6 +703,27 @@ void InNet::runUpdateGROutGOCUDA(cudaStream_t **sts, int streamN) {
     cerr << "runUpdateGROutGOCUDA: kernel launch for gpu #" << i << ": "
          << cudaGetErrorString(error) << endl;
 #endif
+  }
+}
+
+void InNet::runSumGRGOOutCUDA(cudaStream_t **sts, int streamN) {
+  cudaError_t error;
+  for (int i = 0; i < numGPUs; i++) {
+    error = cudaSetDevice(i + gpuIndStart);
+    callSumGRGOOutKernel(sts[i][streamN], sumGRGOOutNumBlocks,
+                         sumGRGOOutNumGOPerB, updateGRGOOutNumGRRows,
+                         grInputGOGPU[i], grInputGOGPUP[i], grInputGOSumGPU[i]);
+  }
+}
+
+void InNet::runUpdateSumGRGOOutCUDA(cudaStream_t **sts, int streamN) {
+  cudaError_t error;
+  for (int i = 0; i < numGPUs; i++) {
+    error = cudaSetDevice(i + gpuIndStart);
+    pack_bits_omp(outputGRGPU[i], apGRGPU_packed[i], numGRPerGPU * sizeof(uint32_t));
+
+    // just call kernel directly, im not sure why there is another function to call in the kernel?
+    // TODO: kernel implementation and call here, with logic in kernels.cu
   }
 }
 
@@ -754,18 +769,18 @@ void InNet::initCUDA() {
   LOG_DEBUG("Number of CUDA devices actually used: %d", numGPUs);
   LOG_DEBUG("Lowest CUDA device index: %d", gpuIndStart);
 
-  numGRPerGPU = num_gr / numGPUs;
+  numGRPerGPU = num_gr / numGPUs; // 524,288
 
   // fiddle with these limits in just the right way and you slow the sim
   // down greatly, or speed it up a little bit
   calcGRActNumGRPerB = 512;
-  calcGRActNumBlocks = numGRPerGPU / calcGRActNumGRPerB;
+  calcGRActNumBlocks = numGRPerGPU / calcGRActNumGRPerB; // 1,024
 
   updateGRGOOutNumGRPerR = 512 * (num_go > 512) + num_go * (num_go <= 512);
-  updateGRGOOutNumGRRows = numGRPerGPU / updateGRGOOutNumGRPerR;
+  updateGRGOOutNumGRRows = numGRPerGPU / updateGRGOOutNumGRPerR; // 2
 
   sumGRGOOutNumGOPerB = 1024 * (num_go > 1024) + num_go * (num_go <= 1024);
-  sumGRGOOutNumBlocks = num_go / sumGRGOOutNumGOPerB;
+  sumGRGOOutNumBlocks = num_go / sumGRGOOutNumGOPerB; // 4
 
   updateMFInGRNumGRPerB = 1024 * (num_mf > 1024) + (num_mf <= 1024) * num_mf;
   updateMFInGRNumBlocks = numGRPerGPU / updateMFInGRNumGRPerB;
@@ -848,6 +863,7 @@ void InNet::initGRCUDA() {
   apBufGRGPU = new uint32_t *[numGPUs];
   outputGRGPU = new uint8_t *[numGPUs];
   apGRGPU = new uint32_t *[numGPUs];
+  apGRGPU_packed = new uint32_t *[numGPUs];
 
   threshGRGPU = new float *[numGPUs];
   vGRGPU = new float *[numGPUs];
@@ -901,6 +917,7 @@ void InNet::initGRCUDA() {
     cudaMalloc((void **)&apGRGPU[i], numGRPerGPU * sizeof(uint32_t));
     cudaMalloc((void **)&apBufGRGPU[i], numGRPerGPU * sizeof(uint32_t));
     cudaMalloc((void **)&outputGRGPU[i], numGRPerGPU * sizeof(uint8_t));
+    cudaMalloc((void **)&apGRGPU_packed[i], numGRPerGPU); // same num bits as numGRPerGPU 
 
     cudaMalloc((void **)&threshGRGPU[i], numGRPerGPU * sizeof(float));
     cudaMalloc<float>(&(vGRGPU[i]), numGRPerGPU * sizeof(float));
@@ -1049,6 +1066,7 @@ void InNet::initGRCUDA() {
                cpySize * sizeof(uint64_t), cudaMemcpyHostToDevice);
 
     cudaMemset(outputGRGPU[i], 0, cpySize * sizeof(uint8_t));
+    cudaMemset(apGRGPU_packed[i], 0, numGRPerGPU);
     cudaMemset(apGRGPU[i], 0, cpySize * sizeof(uint32_t));
 
     cudaDeviceSynchronize();

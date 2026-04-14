@@ -20,6 +20,7 @@
 #include "innetactivitystate.h"
 #include "innetconnectivitystate.h"
 #include "kernels.h"
+#include "NewBits.h"
 #include <cstdint>
 
 class InNet {
@@ -87,6 +88,9 @@ public:
   void cpyGRGOSumGPUtoHostCUDA(cudaStream_t **sts, int streamN,
                                uint32_t **grInputGOSumHost);
   void runUpdateGRHistoryCUDA(cudaStream_t **sts, int streamN, uint32_t t);
+
+  // Carter* new
+  void runUpdateSumGRGOOutCUDA(cudaStream_t **sts, int streamN);
 
 protected:
   // following two pointers are copied in during construction of the class
@@ -210,6 +214,7 @@ protected:
   uint32_t **apBufGRGPU;
   uint8_t **outputGRGPU;
   uint32_t **apGRGPU;
+  uint32_t **apGRGPU_packed;
 
   float **threshGRGPU;
   float **vGRGPU;
