@@ -44,7 +44,12 @@ static volatile int s_initialized = 0;    /* false */
 #if defined(_WIN32) || defined(_WIN64)
 static CRITICAL_SECTION s_mutex;
 #else
-static pthread_mutex_t s_mutex;
+/* Use statically initialized mutex to prevent race conditions during global
+ * constructor phase. When profilers like Nsight Compute inject libraries via
+ * LD_PRELOAD, they trigger additional initialization before main() that may
+ * attempt logging before pthread_mutex_init() is called, causing heap
+ * corruption when uninitialized mutexes are accessed. */
+static pthread_mutex_t s_mutex = PTHREAD_MUTEX_INITIALIZER;
 #endif /* defined(_WIN32) || defined(_WIN64) */
 
 static void init(void) {
@@ -54,7 +59,7 @@ static void init(void) {
 #if defined(_WIN32) || defined(_WIN64)
   InitializeCriticalSection(&s_mutex);
 #else
-  pthread_mutex_init(&s_mutex, NULL);
+  /* Mutex is now statically initialized; init() kept for compatibility */
 #endif               /* defined(_WIN32) || defined(_WIN64) */
   s_initialized = 1; /* true */
 }

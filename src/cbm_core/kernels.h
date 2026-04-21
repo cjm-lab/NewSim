@@ -27,7 +27,12 @@ void callGRActKernel(cudaStream_t &st, unsigned int numBlocks,
                      float *threshGPU, uint32_t *apBufGPU, uint8_t *apOutGRGPU,
                      uint32_t *apGRGPU, int *apMFtoGRGPU, float *gESumGPU,
                      float *gISumGPU, float eLeak, float eGOIn, float gAMPAInc,
-                     float threshBase, float threshMax, float threshDecay);
+                     float threshBase, float threshMax, float threshDecay, 
+                     uint32_t *GRap_packed);
+
+void callUpdateSumGROutKernel(cudaStream_t &st, unsigned int gridSize, unsigned int blockSize,
+                              uint32_t *apGRPackedGPU, uint32_t *GRGOconnGPU, int32_t *numGRSyn,
+                              uint32_t *goOutSumGPU, int numGO, int numGRperGPU);
 
 template <typename Type, bool inMultiP, bool outMultiP>
 void callSumKernel(cudaStream_t &st, Type *inGPU, size_t inGPUP,

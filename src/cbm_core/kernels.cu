@@ -7,9 +7,6 @@
 
 #include "kernels.h"
 
-// global arrays used for sum reduction kernels
-extern __shared__ uint32_t sharedIOBufGR[];
-extern __shared__ float sharedIOBufGRfloat[];
 
 __global__ void testKernel(float *a, float *b, float *c) {
   int i = blockIdx.x * blockDim.x + threadIdx.x;
@@ -24,7 +21,7 @@ __global__ void calcActivityGRGPU(float *vm, float *gKCa, float *gLeak,
                                   uint32_t *apGR, int *apMFtoGR, float *gESum,
                                   float *gISum, float eLeak, float eGOIn,
                                   float gAMPAInc, float threshBase,
-                                  float threshMax, float threshDecay) {
+                                  float threshMax, float threshDecay, uint32_t *GRap_packed) {
   float tempThresh;
   unsigned int tempAP;
   // get the thread id of this thread
@@ -69,6 +66,60 @@ __global__ void calcActivityGRGPU(float *vm, float *gKCa, float *gLeak,
   apOutGR[i] = tempAP;
   apGR[i] = tempAP;
   vm[i] = tempV;
+  
+  // fill bitpacked apGR array
+  // need to double check this works
+  uint32_t packedGRaps = __ballot_sync(0xFFFFFFFF, tempAP);
+  if ((i % 32) == 0) {
+    GRap_packed[i/32] = packedGRaps;
+  }
+}
+
+__global__ void updateSumGRGOOutGPU(const uint32_t *apGRPacked,
+                                    const uint32_t *conn,
+                                    const int32_t *numGRSyn,
+                                    uint32_t *goOutSum,
+                                    const int numGO,
+                                    const int numGRPerGPU) {
+    extern __shared__ uint32_t smem_goOut[];
+
+    // init shared mem to 0, shared mem array is unique for each block
+    // each thread inits 16 go cells (4096 / 256 threads) 
+    for (int i = threadIdx.x; i < numGO; i += blockDim.x) {
+      smem_goOut[i] = 0;
+    }
+    __syncthreads();
+
+    // grid stride over all granule cells per gpu
+    int tid = blockIdx.x * blockDim.x + threadIdx.x;
+    int stride = blockDim.x * gridDim.x;
+   
+    // 256 blocks, 256 threads = 8 gr cell per thread
+    for (int n = tid; n < numGRPerGPU; n += stride) {
+      // fetch bitpacked firing status, all threads in a warp will grab the same word
+      uint32_t GRap_chunk = apGRPacked[n / 32];
+      bool fired = (GRap_chunk & (1u << (n % 32))) != 0;
+
+      // if gr cell fired, get connectivity matrix
+      if (fired) {
+        for (int j = 0; j < numGRSyn[n]; j++) {
+          // get golgi synapse for that granule cell
+          // layout encourages coalesed memory accesses between threads
+          uint32_t goSynapse = conn[j * numGRPerGPU + n];
+          // add a 1 to that golgi synapse, if there is a connection (conn matrix is padded)
+          if (goSynapse != UINT_MAX) atomicAdd(&smem_goOut[goSynapse], 1);
+        }
+      }
+    }
+    __syncthreads();
+
+    // commit shared memory to global array
+    for (int i = threadIdx.x; i < numGO; i += blockDim.x) {
+      uint32_t val = smem_goOut[i];
+      if (val > 0) {
+        atomicAdd(&goOutSum[i], val);
+      }
+    }
 }
 
 __global__ void updateGRGOOutGPU(uint32_t *apBuf, uint32_t *goOut,
@@ -76,6 +127,8 @@ __global__ void updateGRGOOutGPU(uint32_t *apBuf, uint32_t *goOut,
                                  size_t delayPitch, uint32_t *con,
                                  size_t conPitch, int32_t *numSyn,
                                  int nWrites) {
+
+  extern __shared__ uint32_t sharedIOBufGR[];
   // tid is thread identity within the block
   int tid = threadIdx.x;
   // block is the 'global' thread id
@@ -126,6 +179,9 @@ __global__ void updateGRBCOutGPU(uint32_t *apBuf, uint32_t *bcOut,
                                  size_t delayPitch, uint32_t *con,
                                  size_t conPitch, int32_t *numSyn,
                                  int nWrites) {
+
+  extern __shared__ uint32_t sharedIOBufGR[];
+
   int tid = threadIdx.x; 
   int index = blockIdx.x * blockDim.x + threadIdx.x;
   unsigned int *conRow;
@@ -199,6 +255,9 @@ __global__ void updateGRInOPGPU(unsigned int inNLoads, uint32_t *apIn,
                                 float *gDirect, float *gSpillover,
                                 float gDecayD, float gIncD, float gDecayS,
                                 float gIncFracS) {
+
+  extern __shared__ uint32_t sharedIOBufGR[];
+
   int tid = threadIdx.x;
   int index = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -236,6 +295,9 @@ __global__ void updateGOGRDepressionInOPGPU(unsigned int inNLoads,
                                             size_t conFromInPitch,
                                             int32_t *numInPerGR,
                                             float *depAmpGOGRGPU) {
+
+  extern __shared__ float sharedIOBufGRfloat[];
+
   int tid = threadIdx.x;
   int index = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -262,6 +324,8 @@ __global__ void updateMFGRDepressionInOPGPU(unsigned int inNLoads,
                                             int32_t *numInPerGR,
                                             int *numMFperGR,
                                             float *depAmpMFGRGPU) {
+  extern __shared__ float sharedIOBufGRfloat[];
+
   int tid = threadIdx.x;
   int index = blockIdx.x * blockDim.x + tid;
 
@@ -287,6 +351,7 @@ __global__ void
 updateGOGRDynamicSpillInOPGPU(unsigned int inNLoads, float *dynamicAmp,
                               uint32_t *conFromIn, size_t conFromInPitch,
                               int32_t *numInPerGR, float *dynamicAmpGOGRGPU) {
+  extern __shared__ float sharedIOBufGRfloat[];
 
   int tid = threadIdx.x;
   int index = blockIdx.x * blockDim.x + threadIdx.x;
@@ -315,6 +380,9 @@ updateUBCGRInOPGPU(unsigned int inNLoads, uint32_t *apIn, float *depAmp,
                    size_t conFromInPitch, int32_t *numInPerGR, int *apUBCtoGRp,
                    float *gSum, float *gDirect, float *gSpillover,
                    float gDecayD, float gIncD, float gDecayS, float gIncFracS) {
+                                                                          
+  extern __shared__ uint32_t sharedIOBufGR[];
+
   int tid = threadIdx.x;
   int index = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -363,6 +431,9 @@ __global__ void updateMFGRInOPGPU(unsigned int inNLoads, uint32_t *apIn,
                                   float *gSum, float *gDirect,
                                   float *gSpillover, float gDecayD, float gIncD,
                                   float gDecayS, float gIncFracS) {
+  
+  extern __shared__ uint32_t sharedIOBufGR[];
+
   int tid = threadIdx.x;
   int index = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -843,11 +914,13 @@ void callGRActKernel(cudaStream_t &st, unsigned int numBlocks,
                      float *threshGPU, uint32_t *apBufGPU, uint8_t *apOutGRGPU,
                      uint32_t *apGRGPU, int *apMFtoGRGPU, float *gESumGPU,
                      float *gISumGPU, float eLeak, float eGOIn, float gAMPAInc,
-                     float threshBase, float threshMax, float threshDecay) {
+                     float threshBase, float threshMax, float threshDecay, 
+                     uint32_t *GRapPacked) {
   calcActivityGRGPU<<<numBlocks, numGRPerBlock, 0, st>>>(
       vGPU, gKCaGPU, gLeakGPU, gNMDAGRGPU, gNMDAIncGRGPU, threshGPU, apBufGPU,
       apOutGRGPU, apGRGPU, apMFtoGRGPU, gESumGPU, gISumGPU, eLeak, eGOIn,
-      gAMPAInc, threshBase, threshMax, threshDecay);
+      gAMPAInc, threshBase, threshMax, threshDecay, 
+      GRapPacked);
 }
 
 template <typename Type, bool inMultiP, bool outMultiP>
@@ -898,13 +971,7 @@ void callCurandGenerateUniformKernel(cudaStream_t &st, randState *state, uint32_
    curandGenerateUniformsKernel<randState><<<block_dim, thread_dim, 0, st>>>(state, randoms, rand_offset);
 }
 
-void callSumGRGOOutKernel(cudaStream_t &st, unsigned int numBlocks,
-                          unsigned int numGOPerBlock, unsigned int numGROutRows,
-                          uint32_t *grInGOGPU, size_t grInGOGPUPitch,
-                          uint32_t *grInGOSGPU) {
-  sumGRGOOutGPU<<<numBlocks, numGOPerBlock, 0, st>>>(
-      numGROutRows, grInGOGPU, grInGOGPUPitch, grInGOSGPU);
-}
+
 void callSumGRBCOutKernel(cudaStream_t &st, unsigned int numBlocks,
                           unsigned int numBCPerBlock, unsigned int numGROutRows,
                           uint32_t *grInBCGPU, size_t grInBCGPUPitch,
@@ -1010,6 +1077,15 @@ void callUpdatePFPCOutKernel(cudaStream_t &st, unsigned int numBlocks,
       1 << numPFInPerPCP2, numPFInPerPCP2);
 }
 
+void callUpdateSumGROutKernel(cudaStream_t &st, unsigned int gridSize, unsigned int blockSize,
+                              uint32_t *apGRPackedGPU, uint32_t *GRGOconnGPU, int32_t *numGRSyn,
+                              uint32_t *goOutSumGPU, int numGO, int numGRperGPU) {
+
+  updateSumGRGOOutGPU<<<gridSize, blockSize, numGO * sizeof(uint32_t), st>>>(
+      apGRPackedGPU, GRGOconnGPU, numGRSyn, goOutSumGPU, numGO, numGRperGPU);
+}
+
+// Carter*** both these two functions are 'deprecated'
 void callUpdateGROutGOKernel(cudaStream_t &st, unsigned int numBlocks,
                              unsigned int numGRPerBlock, unsigned int numGO,
                              uint32_t *apBufGPU, uint32_t *grInGOGPU,
@@ -1021,6 +1097,15 @@ void callUpdateGROutGOKernel(cudaStream_t &st, unsigned int numBlocks,
       apBufGPU, grInGOGPU, grInGOGPUPitch, delayMasksGPU, delayMasksGPUPitch,
       conGRtoGOGPU, conGRtoGOGPUPitch, numGOPerGRGPU, numGO / numGRPerBlock);
 }
+// ***
+void callSumGRGOOutKernel(cudaStream_t &st, unsigned int numBlocks,
+                          unsigned int numGOPerBlock, unsigned int numGROutRows,
+                          uint32_t *grInGOGPU, size_t grInGOGPUPitch,
+                          uint32_t *grInGOSGPU) {
+  sumGRGOOutGPU<<<numBlocks, numGOPerBlock, 0, st>>>(
+      numGROutRows, grInGOGPU, grInGOGPUPitch, grInGOSGPU);
+}
+
 
 void callUpdateGROutBCKernel(cudaStream_t &st, unsigned int numBlocks,
                              unsigned int numGRPerBlock, unsigned int numBC,

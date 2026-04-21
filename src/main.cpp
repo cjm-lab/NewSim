@@ -21,6 +21,15 @@
 #include "logger.h"
 
 int main(int argc, char **argv) {
+  /* Initialize OpenMP thread count BEFORE any logging or CUDA initialization.
+   * This prevents race conditions when profilers like Nsight Compute inject
+   * libraries via LD_PRELOAD, which triggers implicit OpenMP runtime
+   * initialization. If OpenMP init races with CUDA's thread-local storage
+   * (TLS) setup, it can cause heap corruption during profiling. Calling this
+   * early ensures OpenMP runtime is fully initialized before multi-threaded
+   * CUDA operations and logging begin. */
+  omp_set_num_threads(1); /* for 4 gpus, 8 is the sweet spot. Unsure for 2. */
+
   logger_initConsoleLogger(stderr);
   // for now, set the log level dependent on whether
   // we are compiling for debug target or release target
@@ -34,8 +43,6 @@ int main(int argc, char **argv) {
 
   Control control(p_cl);
   int exit_status = 0;
-
-  omp_set_num_threads(1); /* for 4 gpus, 8 is the sweet spot. Unsure for 2. */
 
   if (p_cl.vis_mode == "TUI") {
     if (!p_cl.session_file.empty()) {

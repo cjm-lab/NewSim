@@ -345,7 +345,7 @@ void InNet::updateMFActivties(const uint8_t *actInMF) {
 }
 
 void InNet::calcGOActivities() {
-#pragma omp parallel for // an attempt at parallelization using openmp haha
+#pragma omp parallel for num_threads(16)// an attempt at parallelization using openmp haha
   for (int i = 0; i < num_go; i++) {
     // gather gr -> go input sums copied from all devices into one host array
     sumGRInputGO[i] = 0;
@@ -530,7 +530,7 @@ void InNet::runGRActivitiesCUDA(cudaStream_t **sts, int streamN) {
                     gNMDAIncGRGPU[i], threshGRGPU[i], apBufGRGPU[i],
                     outputGRGPU[i], apGRGPU[i], apMFtoGRGPU[i], gEGRSumGPU[i],
                     gIGRSumGPU[i], eLeakGR, eGOGR, gAMPAInc, threshRestGR,
-                    threshMaxGR, threshDecGR);
+                    threshMaxGR, threshDecGR, apGRGPU_packed[i]);
 #ifdef DEBUGOUT
     error = cudaGetLastError();
     cerr << "grActivityCUDA: kernel launch for gpu #" << i << ": "
@@ -717,13 +717,22 @@ void InNet::runSumGRGOOutCUDA(cudaStream_t **sts, int streamN) {
 }
 
 void InNet::runUpdateSumGRGOOutCUDA(cudaStream_t **sts, int streamN) {
+  int blockSize = 256;
+  int gridSize = 256;
+
   cudaError_t error;
   for (int i = 0; i < numGPUs; i++) {
     error = cudaSetDevice(i + gpuIndStart);
-    pack_bits_omp(outputGRGPU[i], apGRGPU_packed[i], numGRPerGPU * sizeof(uint32_t));
-
-    // just call kernel directly, im not sure why there is another function to call in the kernel?
-    // TODO: kernel implementation and call here, with logic in kernels.cu
+    // reset grInputGOSUMGPU back to 0 before starting
+    cudaMemset(grInputGOSumGPU[i], 0, num_go * sizeof(uint32_t));
+    callUpdateSumGROutKernel(sts[i][streamN], gridSize, blockSize,
+                          apGRGPU_packed[i], grConGROutGOGPU[i], numGOOutPerGRGPU[i], 
+                          grInputGOSumGPU[i], num_go, numGRPerGPU); 
+    #ifdef DEBUGOUT
+      error = cudaGetLastError();
+      std::cerr << "runUpdateSumGROutGOCUDA: kernel launch for gpu #" << i << ": "
+         << cudaGetErrorString(error) << std::endl;
+    #endif
   }
 }
 
@@ -935,9 +944,7 @@ void InNet::initGRCUDA() {
 
     // connectivity
     cudaMalloc((void **)&numGOOutPerGRGPU[i], numGRPerGPU * sizeof(int32_t));
-    cudaMallocPitch((void **)&grConGROutGOGPU[i],
-                    (size_t *)&grConGROutGOGPUP[i],
-                    numGRPerGPU * sizeof(uint32_t), max_num_p_gr_from_gr_to_go);
+    cudaMalloc((void **)&grConGROutGOGPU[i], numGRPerGPU * sizeof(uint32_t) * max_num_p_gr_from_gr_to_go);
 
     cudaMalloc((void **)&numGOInPerGRGPU[i], numGRPerGPU * sizeof(int32_t));
     cudaMallocPitch((void **)&grConGOOutGRGPU[i],
@@ -1047,9 +1054,11 @@ void InNet::initGRCUDA() {
           (void *)((char *)delayGOMasksGRGPU[i] + j * delayGOMasksGRGPUP[i]),
           &pGRDelayfromGRtoGOT[j][cpyStartInd], cpySize * sizeof(float),
           cudaMemcpyHostToDevice);
-      cudaMemcpy((void *)((char *)grConGROutGOGPU[i] + j * grConGROutGOGPUP[i]),
-                 &pGRfromGRtoGOT[j][cpyStartInd],
-                 cpySize * sizeof(unsigned int), cudaMemcpyHostToDevice);
+      //cudaMemcpy((void *)((char *)grConGROutGOGPU[i] + j * grConGROutGOGPUP[i]),
+                 //&pGRfromGRtoGOT[j][cpyStartInd],
+                 //cpySize * sizeof(unsigned int), cudaMemcpyHostToDevice);
+      cudaMemcpy(grConGROutGOGPU[i] + j * numGRPerGPU, &pGRfromGRtoGOT[j][cpyStartInd],
+                cpySize * sizeof(uint32_t), cudaMemcpyHostToDevice);
     }
 
     // Basket cell stuff

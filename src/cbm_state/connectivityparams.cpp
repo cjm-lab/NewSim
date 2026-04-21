@@ -67,7 +67,8 @@ int num_p_pf_to_go = 309399;
 // (was 5000) should be 4000 08/09/2022
 int max_num_p_go_from_gr_to_go = 4000;
 // should be 22 08/09/2022 (change to 22, no gr activity???)
-int max_num_p_gr_from_gr_to_go = 50;
+// changed to 22 04/21/2026 by carter
+int max_num_p_gr_from_gr_to_go = 22;
 
 // one value we play around with
 int max_pf_to_go_input = 3000; // (was 3750) should be 3000 08/09/2022

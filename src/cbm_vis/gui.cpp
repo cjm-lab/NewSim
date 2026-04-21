@@ -231,6 +231,18 @@ static int create_dir_from(const char *base_path, const char *base_name,
     int full_path_len = snprintf(NULL, 0, "%s", full_path);
     char *command = (char *)malloc(7 + full_path_len + 1);
     sprintf(command, "rm -rf %s", full_path);
+    
+    /* CRITICAL FIX: Synchronize CUDA before system() call.
+     * When system() spawns a child process via fork(), it inherits CUDA file
+     * descriptors, GPU memory mappings, and other GPU state from parent.
+     * Profilers like Nsight Compute intercept malloc/free to track memory
+     * allocations. If a child process exits with stale CUDA state (freed GPU
+     * memory still mapped), the profiler's malloc hook sees corrupted heap
+     * metadata ("corrupted double-linked list") because the GPU mapping
+     * becomes orphaned. Solution: Explicitly synchronize the device to ensure
+     * all GPU operations complete and stable state before fork. */
+    cudaDeviceSynchronize();
+    
     status += system(command);
     free(command);
   }

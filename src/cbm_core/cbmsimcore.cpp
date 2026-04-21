@@ -137,9 +137,11 @@ void CBMSimCore::calcActivity(float spillFrac, enum plasticity pf_pc_plast,
   inputNet->runUpdateGRHistoryCUDA(streams, 4, curTime);
 
   // update the output variables for gr -> go synapse
-  inputNet->runUpdateGROutGOCUDA(streams, 7);
+  //inputNet->runUpdateGROutGOCUDA(streams, 7);
   // sum over go inputs from gr
-  inputNet->runSumGRGOOutCUDA(streams, 4);
+  // inputNet->runSumGRGOOutCUDA(streams, 4);
+  // NEW GR->GO implementation
+  inputNet->runUpdateSumGRGOOutCUDA(streams, 3);
   // cpy resulting sums from device to host
   inputNet->cpyGRGOSumGPUtoHostCUDA(streams, 3);
 

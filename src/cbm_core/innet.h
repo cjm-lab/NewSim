@@ -20,7 +20,6 @@
 #include "innetactivitystate.h"
 #include "innetconnectivitystate.h"
 #include "kernels.h"
-#include "NewBits.h"
 #include <cstdint>
 
 class InNet {
