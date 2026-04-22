@@ -73,6 +73,20 @@ __global__ void calcActivityGRGPU(float *vm, float *gKCa, float *gLeak,
   if ((i % 32) == 0) {
     GRap_packed[i/32] = packedGRaps;
   }
+  // CHECKING BITPACKING WORKS
+  __syncthreads();
+  if (i == 0) {
+    bool correct = true;
+    for (int j=0; j<1<<18; j++) {
+      bool fired = (GRap_packed[j/32] >> (j%32)) & 1 != 0;  
+      if (fired != apOutGR[j]) {
+        correct = false;
+      }
+    }
+    if (!correct) {
+      printf("PACKED CHECK FAILED");
+    }
+  }
 }
 
 __global__ void updateSumGRGOOutGPU(const uint32_t *apGRPacked,
