@@ -73,20 +73,6 @@ __global__ void calcActivityGRGPU(float *vm, float *gKCa, float *gLeak,
   if ((i % 32) == 0) {
     GRap_packed[i/32] = packedGRaps;
   }
-  // CHECKING BITPACKING WORKS
-  __syncthreads();
-  if (i == 0) {
-    bool correct = true;
-    for (int j=0; j<1<<18; j++) {
-      bool fired = (GRap_packed[j/32] >> (j%32)) & 1 != 0;  
-      if (fired != apOutGR[j]) {
-        correct = false;
-      }
-    }
-    if (!correct) {
-      printf("PACKED CHECK FAILED");
-    }
-  }
 }
 
 __global__ void updateSumGRGOOutGPU(const uint32_t *apGRPacked,
@@ -134,28 +120,6 @@ __global__ void updateSumGRGOOutGPU(const uint32_t *apGRPacked,
         atomicAdd(&goOutSum[i], val);
       }
     }
-    // TESTING FUNCTION
-    if (tid == 0) {
-    int key_GOSum[4096];
-    for (int i=0; i<numGO; i++) key_GOSum[i] = 0;
-
-    for (int i=0; i<numGRPerGPU; i++) {
-      if (apGRPacked[i/32] > 0) {
-          bool fired = (apGRPacked[i/32] >> (i % 32)) & 1 != 0;
-          if (fired) {
-            for (int k=0; k<numGRSyn[i]; k++) {
-              uint32_t synapse = conn[k * numGRPerGPU + i];
-              if (synapse != UINT_MAX) key_GOSum[synapse] += 1;
-            }
-          }
-        }
-      }
-    for (int i=0; i<numGO; i++) {
-      if (key_GOSum[i] != goOutSum[i]) {
-        printf("Key: %d, Got: %u\n", key_GOSum[i], goOutSum[i]);
-      }
-    }
-  }
 }
 
 __global__ void updateGRGOOutGPU(uint32_t *apBuf, uint32_t *goOut,
