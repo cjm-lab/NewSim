@@ -21,6 +21,8 @@
 #include <time.h>
 #include <vector>
 
+#include <nvtx3/nvToolsExt.h>
+
 #include "cbmstate.h"
 #include "innet.h"
 #include "mzone.h"

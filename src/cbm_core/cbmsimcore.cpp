@@ -122,7 +122,9 @@ void CBMSimCore::calcActivity(float spillFrac, enum plasticity pf_pc_plast,
   // cp mf spike activity to gpu
   inputNet->cpyAPMFHosttoGPUCUDA(streams, 6);
   // update mf -> gr synaptic variables
+  nvtxRangePushA("UpdateMFtoGROut");
   inputNet->updateMFtoGROut();
+  nvtxRangePop();
   // cpy mf -> gr depression amplitude to gpu
   inputNet->cpyDepAmpMFHosttoGPUCUDA(streams, 5);
 
@@ -146,14 +148,22 @@ void CBMSimCore::calcActivity(float spillFrac, enum plasticity pf_pc_plast,
   inputNet->cpyGRGOSumGPUtoHostCUDA(streams, 3);
 
   // update mf output to go for mf -> go synapse
+  nvtxRangePushA("updateMFtoGO");
   inputNet->updateMFtoGOOut();
+  nvtxRangePop();
   // golgi spiking activity function (on host)
+  nvtxRangePushA("calcGOActivites");
   inputNet->calcGOActivities();
+  nvtxRangePop();
 
   // update go <-> go output params
+  nvtxRangePushA("updateGOtoGO");
   inputNet->updateGOtoGOOut();
+  nvtxRangePop();
   // update go -> gr output params
+  nvtxRangePushA("UpdateGOtoGRParameters");
   inputNet->updateGOtoGROutParameters(spillFrac);
+  nvtxRangePop();
 
   // copy depression amplitude from go -> gr from host to device
   inputNet->cpyDepAmpGOGRHosttoGPUCUDA(
@@ -209,53 +219,83 @@ void CBMSimCore::calcActivity(float spillFrac, enum plasticity pf_pc_plast,
     zones[i]->cpyPFSCSumGPUtoHostCUDA(streams, 3);
 
     // calculate sc spiking activity (host)
+    nvtxRangePushA("CalcSCActivities");
     zones[i]->calcSCActivities();
+    nvtxRangePop();
     // calculate bc spiking activity (host)
+    nvtxRangePushA("CalcBCActivities");
     zones[i]->calcBCActivities();
+    nvtxRangePop();
     // update spike outputs from bc -> pc
+    nvtxRangePushA("updateBCtoPC");
     zones[i]->updateBCPCOut();
+    nvtxRangePop();
     // update spike outputs from sc -> pc
+    nvtxRangePushA("updateSCtoPC");
     zones[i]->updateSCPCOut();
+    nvtxRangePop();
 
     // compute pc spiking activity (host)
+    nvtxRangePushA("calcPCActivities");
     zones[i]->calcPCActivities();
+    nvtxRangePop();
     // update pc output vars
+    nvtxRangePushA("UpdatePCOut");
     zones[i]->updatePCOut();
+    nvtxRangePop();
 
     // compute io activities (host)
     
+    nvtxRangePushA("calcIOActivities");
     zones[i]->calcIOActivities();
+    nvtxRangePop();
     // update io output variables
     //std::cout << "before updateIO\n";
+    nvtxRangePushA("updateIOOut");
     zones[i]->updateIOOut();
+    nvtxRangePop();
     //std::cout << "after updateIO\n";
     // temp solution: by default mfnc plast is GRADED. no other
     // plasticity modes are given for these synapses
     if (mf_nc_plast != OFF) {
+      nvtxRangePushA("UpdateMFNCSyn");
       zones[i]->updateMFNCSyn(inputNet->exportHistMF(), curTime);
+      nvtxRangePop();
     }
     
     // update mf -> nc output vars
+    nvtxRangePushA("UpdateMFNCOut");
     zones[i]->updateMFNCOut();
+    nvtxRangePop();
     // compute nc spiking activity
     
+    nvtxRangePushA("calcNCActivities");
     zones[i]->calcNCActivities();
+    nvtxRangePop();
     // update nc output vars
    
+    nvtxRangePushA("updateNCOut");
     zones[i]->updateNCOut();
+    nvtxRangePop();
   }
 
   // reset mf histories, given the current time
+  nvtxRangePushA("resetMFHist");
   inputNet->resetMFHist(curTime);
+  nvtxRangePop();
   
 }
 // end of calcActivities
 
 void CBMSimCore::updateMFInput(const uint8_t *mfIn) {
+  nvtxRangePushA("updateMFActivities");
   inputNet->updateMFActivties(mfIn);
+  nvtxRangePop();
 
   for (int i = 0; i < numZones; i++) {
+    nvtxRangePushA("updateMFActivities");
     zones[i]->updateMFActivities(mfIn);
+    nvtxRangePop();
   }
 }
 

@@ -28,7 +28,8 @@ int main(int argc, char **argv) {
    * (TLS) setup, it can cause heap corruption during profiling. Calling this
    * early ensures OpenMP runtime is fully initialized before multi-threaded
    * CUDA operations and logging begin. */
-  omp_set_num_threads(1); /* for 4 gpus, 8 is the sweet spot. Unsure for 2. */
+  int max_threads = omp_get_max_threads() - 2;
+  omp_set_num_threads(max_threads); /* for 4 gpus, 8 is the sweet spot. Unsure for 2. */
 
   logger_initConsoleLogger(stderr);
   // for now, set the log level dependent on whether

@@ -345,7 +345,7 @@ void InNet::updateMFActivties(const uint8_t *actInMF) {
 }
 
 void InNet::calcGOActivities() {
-#pragma omp parallel for num_threads(16)// an attempt at parallelization using openmp haha
+#pragma omp parallel for // an attempt at parallelization using openmp haha
   for (int i = 0; i < num_go; i++) {
     // gather gr -> go input sums copied from all devices into one host array
     sumGRInputGO[i] = 0;
@@ -461,7 +461,7 @@ void InNet::updateGOtoGROutParameters(float spillFrac) {
   float recoveryRate = 1 / recoveryTauGO;
   float baselvl = spillFrac * gogrW;
 
-#pragma omp parallel for
+#pragma omp parallel for 
   for (int i = 0; i < num_go; i++) {
     // reset depression amplitudes
     as->depAmpGOGR[i] = 1;
