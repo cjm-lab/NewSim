@@ -8,6 +8,8 @@
 #include "connectivityparams.h"
 #include "logger.h"
 
+#include "new_connect_functions.hpp"
+
 InNetConnectivityState::InNetConnectivityState(int randSeed) {
   CRandomSFMT0 randGen(randSeed);
 
@@ -30,7 +32,8 @@ InNetConnectivityState::InNetConnectivityState(int randSeed) {
   connectGOGL(randGen);
 
   LOG_DEBUG("Connecting GO to GO");
-  connectGOGODecayP(randGen);
+  //connectGOGODecayP(randGen);
+  NEW_connectGOtoGO();
 
   LOG_DEBUG("Connecting GO to GO gap junctions");
   connectGOGO_GJ(randGen);
@@ -1136,6 +1139,24 @@ void InNetConnectivityState::connectGOGODecayP(CRandomSFMT &randGen) {
   LOG_DEBUG("Fraction of reciprocal connections: %0.2f",
             (float)recipCounter / (float)totalGOGOcons);
   delete2DArray<bool>(conGOGOBoolOut);
+}
+
+void InNetConnectivityState::NEW_connectGOtoGO() {
+  // dont have a radial span variable, just approximate one for now
+  int span_radius = num_con_go_to_go / 2;
+  connectGOtoGO(pGOGABAInGOGO, num_con_go_to_go, p_recip_go_go, num_go,
+                go_x, go_y, span_radius);
+  // need to complete the coresponding post_synaptic array as well
+  int pre_cell, post_cell;
+  int num_pre_syns[num_go] = {0};
+  for (int i=0; i<num_go; i++) {
+    post_cell = i;
+    for (int j=0; j<num_con_go_to_go; j++) {
+      pre_cell = pGOGABAInGOGO[i][j];
+      pGOGABAOutGOGO[pre_cell][num_pre_syns[pre_cell]] = post_cell;
+      num_pre_syns[pre_cell]++;
+    }
+  }
 }
 
 /* connect go <-> go gap junctions */

@@ -162,6 +162,9 @@ protected:
   void translateMFGL();
   void translateGOGL();
   void assignGRDelays();
+  
+  // NEW
+  void NEW_connectGOtoGO();
 };
 
 #endif /* INNETCONNECTIVITYSTATE_H_ */

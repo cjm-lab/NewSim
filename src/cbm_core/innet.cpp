@@ -491,6 +491,7 @@ void InNet::updateGOtoGOOut() {
     }
   }
 
+/* Disable GOGO Gap Junctions for now...
 #pragma omp parallel for
   for (int i = 0; i < num_go; i++) {
     for (int j = 0; j < cs->numpGOCoupInGOGO[i]; j++) {
@@ -499,6 +500,7 @@ void InNet::updateGOtoGOOut() {
                           coupleRiRjRatioGO * cs->pGOCoupInGOGOCCoeff[i][j];
     }
   }
+*/
 }
 
 void InNet::resetMFHist(uint32_t t) {
