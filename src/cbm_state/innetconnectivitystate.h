@@ -163,8 +163,14 @@ protected:
   void translateGOGL();
   void assignGRDelays();
   
-  // NEW
+  // Carter* NEW
+  void NEW_assignMFtoGL();
+  void NEW_connectGLtoGR();
+  void NEW_connectGLtoGO();
+  void NEW_connectGOtoGR();
+  void NEW_connectGRtoGO();
   void NEW_connectGOtoGO();
+
 };
 
 #endif /* INNETCONNECTIVITYSTATE_H_ */

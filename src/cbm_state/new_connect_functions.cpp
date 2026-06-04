@@ -1,5 +1,20 @@
 #include "new_connect_functions.hpp"
 
+// Utility Functions
+
+std::function<int()> make_generator(int min_val, int max_val) {
+    // seed each engine differently with rd
+    std::random_device rd;
+    std::mt19937 engine(rd());
+    std::uniform_int_distribution<int> dist(min_val, max_val-1);
+
+    // return the engine as a lambda,
+    // so it becomes unique for each function all
+    return [engine, dist]() mutable {
+        return dist(engine);
+    };
+}
+ 
 int* make_shuffled_arr(int max_val) {
     int* arr = new int[max_val];
     std::iota(arr, arr + max_val, 0);
@@ -9,6 +24,32 @@ int* make_shuffled_arr(int max_val) {
 
     std::shuffle(arr, arr+max_val, g);
     return arr;
+}
+
+std::vector<int> make_candidate_vector_from_2D_range(int posX, int posY, int spanX, int spanY, int numX, int numY) {
+    std::vector<int> vector;
+    vector.reserve(spanX*spanY);
+
+    int startX = (posX - spanX/2);
+    int startY = (posY - spanY/2);
+
+    // itterate over span
+    for (int i = 0; i < spanY; i++) {
+        int y_raw = i + startY;
+        // wrap position over edges of grid, this funky code wraps over negatives too
+        int y = ((y_raw % numY) + numY) % numY;
+
+        for (int j = 0; j < spanX; j++) {
+            int x_raw = j + startX;
+            // both ways wrapping
+            int x = ((x_raw % numX) + numX) % numX;
+            // flatten and add
+            int num = (y * numX) + x;
+            vector.push_back(num);
+        }
+    }
+
+    return vector;
 }
 
 float get_distance_wrapped(int Ax, int Ay, int Bx, int By, int Nx, int Ny) {
@@ -22,6 +63,290 @@ float get_distance_wrapped(int Ax, int Ay, int Bx, int By, int Nx, int Ny) {
 
     // calculate euclidean distance
     return std::sqrt((shortest_dx * shortest_dx) + (shortest_dy * shortest_dy));
+}
+
+// Timer helper struct
+void Timer::start() {
+    startTime = std::chrono::high_resolution_clock::now();
+}
+void Timer::stop() {
+    endTime = std::chrono::high_resolution_clock::now();
+}
+void Timer::print() {
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime);
+    if (timeFrame == "ms") {
+        std::cout << message << duration.count() << "ms" << std::endl;
+    } else if (timeFrame == "s") {
+        std::cout << message << duration.count() / 1000 << "s" << std::endl;
+    } else {
+        std::cout << "Unknown timeframe for " << message << std::endl;
+    }
+}
+
+// scoped Timer features
+Timer::Timer(std::string m, std::string tf) :
+    message(m), timeFrame(tf) {
+
+        start();
+    }
+
+Timer::~Timer() {
+    stop();
+    print();
+}
+
+// ==================== Connectivity Functions =======================
+
+void assignMFtoGL(int* MFtoGL_GL, int numGL, int numMF, int MFmaxNumPresyn) {
+    Timer timer("MF to GL: ", "ms");
+    // first, ensure that each MF does not need to make more than 2 synapses
+    // to occupy each GL
+    assert((numMF >= ceil(numGL/MFmaxNumPresyn)) && "[Config Error] MF to GL connection not possible given the current numbers of cells and MF divergence.");
+    // set array values all to -1 as a null indicator
+    for (int i=0; i<numGL; i++)
+        MFtoGL_GL[i] = -1;
+    // ensure each MF connects to one GL
+    // for each MF, chose a random GL from a shuffled list of them
+    // ensures no doubles
+    int* shuffled_GL = make_shuffled_arr(numGL);
+    for (int i=0; i<numMF; i++) 
+        MFtoGL_GL[shuffled_GL[i]] = i;
+    delete[] shuffled_GL;
+
+    // then, assign all the other GL a random MF
+    // ensure each MF hasnt been used more than MFmaxNumPresyn times, using a counter array
+    // this is not the fastest implementation, but it is simple and that is good.
+    int* MF_synapses = new int[numMF];
+    for (int i=0; i<numMF; i++) MF_synapses[i] = 1;
+
+    auto rand_MF = make_generator(0, numMF);
+    for (int i=0; i<numGL; i++) {
+        if (MFtoGL_GL[i] == -1) {
+            bool done = false;
+            while (!done) {
+                int mf = rand_MF();
+                if (MF_synapses[mf] < MFmaxNumPresyn) {
+                    MFtoGL_GL[i] = mf;
+                    MF_synapses[mf]++;
+                    done = true;
+                }
+            }
+        }
+    }
+}
+
+void connectGLtoGR(int** MFtoGR_GR, const int* MFtoGL_GL, int GRConv, int numGR,
+    int GRx, int GRy, int GLspanX, int GLspanY, int GLx, int GLy) {
+    Timer timer("GL to GR: ", "s");
+
+    float scaleFactorX = static_cast<float>(GLx) / GRx;
+    float scaleFactorY = static_cast<float>(GLy) / GRy;
+    int divergenceCap = ((numGR * GRConv) / (GLx * GLy)) * 1.5;
+
+    int* numGL_presyn = new int[GLx * GLy];
+    std::memset(numGL_presyn, 0, sizeof(int) * GLx * GLy);
+    std::vector<int> GL_availPre(GLx*GLy);
+    std::iota(GL_availPre.begin(), GL_availPre.end(), 0);
+    // make vector for all filtered results
+    std::vector<int> candidate_GL;
+    candidate_GL.reserve(GLspanX * GLspanY);       
+    // need to store the pres that were chosen so they can be checked for exceeding
+    // divergence limits afterword
+    std::vector<int> chosen_pres;
+    chosen_pres.reserve(GRConv);
+
+    // need to set up a random device here because the range will change dynamically
+    std::random_device rd;
+    std::mt19937 gen(rd());   
+    
+    int* rand_GRs = make_shuffled_arr(numGR);
+    // iterate through all GR cells
+    for (int i=0; i<numGR; i++) {
+        int GR_post = rand_GRs[i];
+        int posX = round(scaleFactorX * (GR_post % GRx));
+        int posY = round(scaleFactorY * (GR_post / GRx));
+
+        // get vector of all presyn in span
+        std::vector<int> GL_inSpan = make_candidate_vector_from_2D_range(posX, posY, GLspanX, GLspanY, GLx, GLy);
+        std::sort(GL_inSpan.begin(), GL_inSpan.end());
+
+        std::set_intersection(GL_inSpan.begin(), GL_inSpan.end(),
+                              GL_availPre.begin(), GL_availPre.end(),
+                              std::back_inserter(candidate_GL));
+        // this is important to make sure that the possible connect span is large enough
+        // to satisfy the number of connections needed to be made
+        assert(candidate_GL.size() > GRConv);
+
+
+        for (int j=0; j<GRConv; j++) {
+            
+            // chose a random index from the candidate array
+            std::uniform_int_distribution<int> dist(0, candidate_GL.size() - 1);
+            int rand_idx = dist(gen); 
+            int GL_pre = candidate_GL[rand_idx];
+
+            MFtoGR_GR[GR_post][j] = MFtoGL_GL[GL_pre];
+
+            // remove that option from the vector of candidates, increment presyn, repeat
+            candidate_GL.erase(candidate_GL.begin() + rand_idx);
+            numGL_presyn[GL_pre]++;
+            chosen_pres.emplace_back(GL_pre);
+        }
+        // from availPre, remove all GL that reached divergence threshold
+        // only need to check this at the end of each post cell because they have no overlapping pre within
+        for (int& pre : chosen_pres) {
+            if (numGL_presyn[pre] >= divergenceCap) {
+                // get the index value for that cell
+                auto it = std::lower_bound(GL_availPre.begin(), GL_availPre.end(), pre);
+                if (it != GL_availPre.end() && *it == pre) {
+                    int idx = std::distance(GL_availPre.begin(), it);
+                    // remove it from the candidate array
+                    GL_availPre.erase(GL_availPre.begin() + idx);
+                }
+            }
+        }
+        // clear the arrays that are unique for each cell
+        // this approach is better than removing the array and allocating again each cell
+        candidate_GL.erase(candidate_GL.begin(), candidate_GL.end());
+        chosen_pres.erase(chosen_pres.begin(), chosen_pres.end());
+    }
+    delete[] numGL_presyn;
+    delete[] rand_GRs;
+}
+
+void connectGRtoGO(int** GRtoGO_GO, int GOConv, int numGO,
+                   int GOx, int GOy, int GRx, int GRy,
+                   int spanX, int spanY) {
+    Timer timer("GR to GO: ", "ms");
+
+    float scaleFactorX = static_cast<float>(GRx) / GOx;
+    float scaleFactorY = static_cast<float>(GRy) / GOy;
+    int divergenceCap = ((numGO * GOConv) / (GRx * GRy)) * 1.5;
+
+    int* numGR_presyn = new int[GRx * GRy];
+    std::memset(numGR_presyn, 0, sizeof(int) * GRx * GRy);
+    std::vector<int> GR_availPre(GRx*GRy);
+    std::iota(GR_availPre.begin(), GR_availPre.end(), 0);
+
+    std::vector<int> candidate_GR;
+    candidate_GR.reserve(spanX * spanY);
+    std::vector<int> chosen_pres;
+    chosen_pres.reserve(GOConv);
+
+    std::random_device rd;
+    std::mt19937 gen(rd());
+
+    int* rand_GOs = make_shuffled_arr(numGO);
+    for (int i=0; i<numGO; i++) {
+        int GO_post = rand_GOs[i];
+        int posX = round(scaleFactorX * (GO_post % GOx));
+        int posY = round(scaleFactorY * (GO_post / GOx));
+
+        std::vector<int> GR_inSpan = make_candidate_vector_from_2D_range(posX, posY, spanX, spanY, GRx, GRy);
+        std::sort(GR_inSpan.begin(), GR_inSpan.end());
+
+        std::set_intersection(GR_inSpan.begin(), GR_inSpan.end(),
+                              GR_availPre.begin(), GR_availPre.end(),
+                              std::back_inserter(candidate_GR));
+
+        assert(candidate_GR.size() >= GOConv);
+
+        for (int j=0; j<GOConv; j++) {
+            assert(candidate_GR.size() > 0);
+
+            std::uniform_int_distribution<int>dist(0, candidate_GR.size()-1);
+            int rand_idx = dist(gen);
+            int GR_pre = candidate_GR[rand_idx];
+
+            GRtoGO_GO[i][j] = GR_pre;
+
+            candidate_GR.erase(candidate_GR.begin() + rand_idx);
+            numGR_presyn[GR_pre]++;
+            chosen_pres.emplace_back(GR_pre);
+        }
+
+        for (int& pre : chosen_pres) {
+            if (numGR_presyn[pre] >= divergenceCap) {
+                auto it = std::lower_bound(GR_availPre.begin(), GR_availPre.end(), pre);
+                if (it != GR_availPre.end() && *it == pre) {
+                    int idx = std::distance(GR_availPre.begin(), it);
+                    GR_availPre.erase(GR_availPre.begin() + idx);
+                }
+            }
+        }
+        candidate_GR.erase(candidate_GR.begin(), candidate_GR.end());
+        chosen_pres.erase(chosen_pres.begin(), chosen_pres.end());
+    }
+    delete[] numGR_presyn;
+    delete[] rand_GOs; 
+}
+
+void connectGOtoGR(int** GOtoGR_GR, int GRConv, 
+                   int numGR, int spanX, int spanY,
+                   int GOx, int GOy, int GRx, int GRy) {
+    Timer timer("GO to GR: ", "ms");
+
+    float scaleFactorX = static_cast<float>(GOx) / GRx;
+    float scaleFactorY = static_cast<float>(GOy) / GRy;
+    int divergenceCap = ((numGR * GRConv) / (GOx * GOy)) * 1.5;
+
+    int* numGO_presyn = new int[GOx * GOy];
+    std::memset(numGO_presyn, 0, sizeof(int) * GOx * GOy);
+    std::vector<int> GO_availPre(GOx*GOy);
+    std::iota(GO_availPre.begin(), GO_availPre.end(), 0);
+
+    std::vector<int> candidate_GO;
+    candidate_GO.reserve(spanX * spanY);
+    std::vector<int> chosen_pres;
+    chosen_pres.reserve(GRConv);
+
+    std::random_device rd;
+    std::mt19937 gen(rd());
+
+    int* rand_GRs = make_shuffled_arr(numGR);
+    for (int i=0; i<numGR; i++) {
+        int GR_post = rand_GRs[i];
+        int posX = round(scaleFactorX * (GR_post % GRx));
+        int posY = round(scaleFactorY * (GR_post / GRx));
+
+        std::vector<int> GO_inSpan = make_candidate_vector_from_2D_range(posX, posY, spanX, spanY, GOx, GOy);
+        std::sort(GO_inSpan.begin(), GO_inSpan.end());
+
+        std::set_intersection(GO_inSpan.begin(), GO_inSpan.end(),
+                              GO_availPre.begin(), GO_availPre.end(),
+                              std::back_inserter(candidate_GO));
+
+        assert(candidate_GO.size() >= GRConv);
+
+
+        for (int j=0; j<GRConv; j++) {
+
+            std::uniform_int_distribution<int> dist(0, candidate_GO.size()-1);
+            int rand_idx = dist(gen);
+            int GO_pre = candidate_GO[rand_idx];
+            
+            GOtoGR_GR[GR_post][j] = GO_pre;
+
+            // remove GO from candidates vector
+            candidate_GO.erase(candidate_GO.begin() + rand_idx);
+            numGO_presyn[GO_pre]++;
+            chosen_pres.emplace_back(GO_pre);
+        }
+
+        for (int& pre : chosen_pres) {
+            if (numGO_presyn[pre] >= divergenceCap) {
+                auto it = std::lower_bound(GO_availPre.begin(), GO_availPre.end(), pre);
+                if (it != GO_availPre.end() && *it == pre) {
+                    int idx = std::distance(GO_availPre.begin(), it);
+                    GO_availPre.erase(GO_availPre.begin() + idx);
+                }
+            }
+        }
+        candidate_GO.erase(candidate_GO.begin(), candidate_GO.end());
+        chosen_pres.erase(chosen_pres.begin(), chosen_pres.end());
+    }
+    delete[] numGO_presyn;
+    delete[] rand_GRs;
 }
 
 void connectGOtoGO(int** GOtoGO_post, int GOConv, float recip,
