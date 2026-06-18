@@ -20,16 +20,20 @@ InNetConnectivityState::InNetConnectivityState(int randSeed) {
   LOG_DEBUG("Initializing innet connections...");
 
   LOG_DEBUG("Connecting MF and GL");
-  connectMFGL_noUBC();
+  //connectMFGL_noUBC();
+  NEW_assignMFtoGL();
 
   LOG_DEBUG("Connecting GR and GL");
-  connectGLGR(randGen);
+  //connectGLGR(randGen);
+  NEW_connectGLtoGR();
 
   LOG_DEBUG("Connecting GR to GO");
-  connectGRGO();
+  //connectGRGO();
+  NEW_connectGRtoGO();
 
   LOG_DEBUG("Connecting GO and GL");
-  connectGOGL(randGen);
+  //connectGOGL(randGen);
+  NEW_connectGLtoGO();
 
   LOG_DEBUG("Connecting GO to GO");
   //connectGOGODecayP(randGen);
@@ -38,14 +42,18 @@ InNetConnectivityState::InNetConnectivityState(int randSeed) {
   LOG_DEBUG("Connecting GO to GO gap junctions");
   connectGOGO_GJ(randGen);
 
-  LOG_DEBUG("Translating MF GL");
-  translateMFGL();
+  // can skip this step, is done internally now
+  //LOG_DEBUG("Translating MF GL");
+  //translateMFGL();
 
-  LOG_DEBUG("Translating GO and GL");
-  translateGOGL();
+  //LOG_DEBUG("Translating GO and GL");
+  // This is really GO to GR ***
+  //translateGOGL();
+  NEW_connectGOtoGR();
 
-  LOG_DEBUG("Assigning GR delays");
-  assignGRDelays();
+  // dont need the delay...
+  //LOG_DEBUG("Assigning GR delays");
+  //assignGRDelays();
 
   LOG_DEBUG("Finished making innet connections.");
 }
@@ -588,6 +596,10 @@ void InNetConnectivityState::connectMFGL_noUBC() {
   LOG_DEBUG("Correct number: %d", num_gl);
 }
 
+void InNetConnectivityState::NEW_assignMFtoGL() {
+    assignMFtoGL(pGLfromMFtoGL, num_gl, num_mf, num_p_mf_to_gl);
+}
+
 /**
  *  @details The naming here is legacy from I'm not sure when so it is
  *  a little confusing. 'src' refers to the post-synaptic cell while
@@ -671,6 +683,15 @@ void InNetConnectivityState::connectGLGR(CRandomSFMT &randGen) {
 
   LOG_DEBUG("Total number of Glomeruli to Granule connections: %d", count);
   LOG_DEBUG("Correct number: %d", num_gr * max_num_p_gr_from_gl_to_gr);
+}
+
+void InNetConnectivityState::NEW_connectGLtoGR() {
+  // normally we could connect the GR and GL and then later translate GL to MF, 
+  // but we skip the intermediate step here
+  connectGLtoGR(pGRfromMFtoGR, pGLfromMFtoGL, max_num_p_gr_from_gl_to_gr,
+                num_gr, gr_x, gr_y, span_gl_to_gr_x, span_gl_to_gr_x, gl_x, gl_y); 
+  // there also exists a reciprocal array from the MF POV,
+  // but it is NOT USED ANYWHERE
 }
 
 void InNetConnectivityState::connectGRGO() {
@@ -821,6 +842,21 @@ void InNetConnectivityState::connectGRGO() {
 
   LOG_DEBUG("GR-GO average divergence: %0.2f",
             gr_go_output_sum / (float)num_gr);
+}
+
+void InNetConnectivityState::NEW_connectGRtoGO() {
+  connectGRtoGO(pGOfromGRtoGO, max_num_p_gr_from_gr_to_go, num_go, go_x, go_y, gr_x, gr_y, span_pf_to_go_x, span_pf_to_go_y);
+  // recip array from GR perspective is used so well fill it out here
+  int pre_cell, post_cell;
+  int numPreSyns[num_gr] = {0};
+  for (int i=0; i<num_go; i++) {
+    post_cell = i;
+    for (int j=0; j<max_pf_to_go_input; j++) {
+      pre_cell = pGOfromGRtoGO[post_cell][j];
+      pGRfromGRtoGO[pre_cell][numPreSyns[pre_cell]] = post_cell;
+      numPreSyns[pre_cell]++;
+    }
+  }
 }
 
 void InNetConnectivityState::connectGOGL(CRandomSFMT &randGen) {
@@ -988,6 +1024,22 @@ void InNetConnectivityState::connectGOGL(CRandomSFMT &randGen) {
   LOG_DEBUG(
       "Average number of golgi to glomerulus connections per glomerulus: %0.2f",
       (float)totalGOGL / (float)num_gl);
+}
+
+void InNetConnectivityState::NEW_connectGLtoGO() {
+  connectGLtoGO(pGOfromMFtoGO, pGLfromMFtoGL, num_go, go_x, go_y, span_gl_to_go_x, span_gl_to_go_y,
+                gl_x, gl_y, max_num_p_go_from_gl_to_go);
+  // recip array gets used so we fill it here
+  int pre_cell, post_cell;
+  int numPreSyns[num_mf] = {0};
+  for (int i=0; i<num_go; i++) {
+    post_cell = i;
+    for (int j=0; j<max_num_p_go_from_gl_to_go; j++) {
+      pre_cell = pGOfromMFtoGO[post_cell][j];
+      pMFfromMFtoGO[pre_cell][numPreSyns[pre_cell]] = post_cell;
+      numPreSyns[pre_cell]++;
+    }
+  }
 }
 
 void InNetConnectivityState::connectGOGODecayP(CRandomSFMT &randGen) {
@@ -1246,6 +1298,17 @@ void InNetConnectivityState::connectGOGO_GJ(CRandomSFMT &randGen) {
     }
   }
   delete2DArray<bool>(gjConBool);
+}
+
+void InNetConnectivityState::NEW_connectGOtoGR() {
+  // big sim connects GO -> GL, and then translates GL->GR.
+  // This algorithm direclty wires GO -> GR, therefore has no span for that.
+  // Putting a temp span in here for now...
+  int go_to_gr_span_x = 4;
+  int go_to_gr_span_y = 4;
+  connectGOtoGR(pGRfromGOtoGR, max_num_p_gr_from_go_to_gr, num_gr, go_to_gr_span_x, go_to_gr_span_y,
+                go_x, go_y, gr_x, gr_y);
+  // recip array does not seem to be used in the codebase, do not need to translate...
 }
 
 /**
