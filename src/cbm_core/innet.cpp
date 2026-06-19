@@ -485,7 +485,8 @@ void InNet::updateGOtoGOOut() {
   for (int i = 0; i < num_go; i++) {
     // update all go this go is connected to if this go spiked
     if (as->apGO[i]) {
-      for (int j = 0; j < cs->numpGOGABAOutGOGO[i]; j++) {
+      //for (int j = 0; j < cs->numpGOGABAOutGOGO[i]; j++) {
+      for (int j = 0; j < num_con_go_to_go; j++) {
         as->inputGOGO[cs->pGOGABAOutGOGO[i][j]]++;
       }
     }
