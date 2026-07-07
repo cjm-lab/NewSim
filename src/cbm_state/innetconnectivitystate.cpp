@@ -1001,7 +1001,8 @@ void InNetConnectivityState::connectGOGODecayP(CRandomSFMT &randGen) {
   memset(conGOGOBoolOut[0], false, num_go * num_go * sizeof(bool));
 
   for (int i = 0; i < span_go_to_go_x + 1; i++) {
-    spanArrayGOtoGOsynX[i] = i - (span_go_to_go_x / 2);
+    spanArrayGOtoGOsynX[i] = 5; // Mike June26
+    // spanArrayGOtoGOsynX[i] = i - (span_go_to_go_x / 2);
   }
 
   for (int i = 0; i < span_go_to_go_y + 1; i++) {
@@ -1143,7 +1144,7 @@ void InNetConnectivityState::connectGOGODecayP(CRandomSFMT &randGen) {
 
 void InNetConnectivityState::NEW_connectGOtoGO() {
   // dont have a radial span variable, just approximate one for now
-  int span_radius = num_con_go_to_go / 2;
+  int span_radius = 5;  // num_con_go_to_go / 2; // Mike June26
   connectGOtoGO(pGOGABAInGOGO, num_con_go_to_go, p_recip_go_go, num_go,
                 go_x, go_y, span_radius);
   // need to complete the coresponding post_synaptic array as well

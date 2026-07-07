@@ -797,8 +797,7 @@ void Control::runSession(struct gui *gui) {
         changeMF = 1;
       }
       //std::cout << " just before deciding US\n";
-      if (useCS && ts >= onsetCS && ts < onsetCS + csLength) {
-
+      if (useCS && ts >= onsetCS && ts < onsetCS + csLength) { 
         mfs->calcGammaActivity(CS, simCore->getMZoneList(),changeMF);
       } else { // background mf activity
         mfs->calcGammaActivity(BKGD, simCore->getMZoneList(),changeMF);
@@ -835,9 +834,10 @@ void Control::runSession(struct gui *gui) {
 
       /* data collection */
       //std::cout << "before fill rasters\n";
-      if (ts >= onsetCS - msPreCS && ts < onsetCS - msPreCS + msMeasure) {
+      // if (ts >= onsetCS - msPreCS && ts < onsetCS - msPreCS + msMeasure) { //Mike June26
+      if (ts < trialTime) { //Mike June26
         fill_rasters(raster_counter, PSTHCounter);
-        fill_psths(PSTHCounter);
+        // fill_psths(PSTHCounter); //Mike June26
         PSTHCounter++;
         raster_counter++;
       }

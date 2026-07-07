@@ -151,10 +151,11 @@ float threshMaxPC = -48.0;
 float threshMaxSC = 0.0;
 float weightScale = 1.0;
 float rawGRGOW = 0.0007;
-float rawMFGOW = 0.0042 * MFtoGOHomeo; // 0.0035;
-float gogrW = 0.015 * GotogrHomeo;
-float gogoW = 0.0125 * GotoGoHomeo;
 
+float rawMFGOW = 0.0056 * MFtoGOHomeo; //0.0056 0.0035; // Mike June26
+float gogoW = 0.018 * GotoGoHomeo;
+
+float gogrW = 0.015 * GotogrHomeo;
 /* derived act params */
 float numTSinMFHist = msPerHistBinMF / msPerTimeStep;
 float gLeakGO = rawGLeakGO; // / (6 - msPerTimeStep);

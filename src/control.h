@@ -185,7 +185,7 @@ public:
   /* time related variables in-trial */
   uint32_t trialTime = 5000;
   uint32_t msPreCS = 400; // how much time before the cs do we collect data for
-  uint32_t msMeasure = msPreCS - BUN_VIZ_MS_PRE_CS + BUN_VIZ_MS_MEASURE;
+  uint32_t msMeasure = trialTime; // msPreCS - BUN_VIZ_MS_PRE_CS + BUN_VIZ_MS_MEASURE; // Mike June26
 
   /* plasticity types */
   enum plasticity pf_pc_plast = OFF;

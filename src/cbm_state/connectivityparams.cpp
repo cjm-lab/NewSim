@@ -87,8 +87,6 @@ int span_go_to_go_x = 10;
 int span_go_to_go_y = 10;
 int num_p_go_to_go = 121;
 
-int num_con_go_to_go = 20;
-
 int go_go_recip_cons = 1;        // will be interpreted as boolean
 int reduce_base_recip_go_go = 0; // will be interpreted as boolean
 
@@ -187,7 +185,10 @@ float msPerTimeStep = 1.0;
 float numPopHistBinsPC = 8.0;
 float ampl_go_to_go = 0.35;
 float std_dev_go_to_go = 1.95;
-float p_recip_go_go = 0.75;
+
+int num_con_go_to_go = 8; // Mike June26
+float p_recip_go_go = .9;
+
 float p_recip_lower_base_go_go = 0.0;
 float ampl_go_to_gl = 0.01;
 float std_dev_go_to_gl_ml = 100.0; // medial lateral
