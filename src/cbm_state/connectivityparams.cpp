@@ -187,7 +187,7 @@ float ampl_go_to_go = 0.35;
 float std_dev_go_to_go = 1.95;
 
 int num_con_go_to_go = 8; // Mike June26
-float p_recip_go_go = .9;
+float p_recip_go_go = .75;
 
 float p_recip_lower_base_go_go = 0.0;
 float ampl_go_to_gl = 0.01;
