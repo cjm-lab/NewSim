@@ -19,8 +19,8 @@ INC_DIRS  := $(shell find $(SRC_DIR) -type d)
 INC_FLAGS := $(addprefix -I,$(INC_DIRS))
 
 ifeq (Ubuntu, $(findstring Ubuntu, $(shell uname -rv)))
-	CUDA_PKG_NAME   := cuda-12.9
-	CUDART_PKG_NAME := cudart-12.9
+	CUDA_PKG_NAME   := cuda-12.4
+	CUDART_PKG_NAME := cudart-12.4
 else
 	CUDA_PKG_NAME   := cuda
 	CUDART_PKG_NAME := cudart
@@ -46,11 +46,11 @@ DEBUG_OBJS   := $(CUDA_DEBUG_OBJS) $(NON_CUDA_DEBUG_OBJS)
 NVCC       := nvcc
 NVCC_FLAGS := -arch=native -Xcompiler  -O3 
 
-CPP             := g++-12
+CPP             := g++-11
 CPP_FLAGS       := -m64 -pipe -std=c++17 -fopenmp -O3 
 CPP_DEBUG_FLAGS := -m64 -pipe -std=c++17 -fopenmp -g -D DEBUG 
 
-LD             := g++-12
+LD             := g++-11
 LD_FLAGS       := -m64 -fopenmp -O3
 LD_DEBUG_FLAGS := -m64 -fopenmp -g
 

@@ -1001,7 +1001,7 @@ void InNetConnectivityState::connectGOGODecayP(CRandomSFMT &randGen) {
   memset(conGOGOBoolOut[0], false, num_go * num_go * sizeof(bool));
 
   for (int i = 0; i < span_go_to_go_x + 1; i++) {
-    spanArrayGOtoGOsynX[i] = 5; // Mike June26
+    spanArrayGOtoGOsynX[i] = 8; // Mike June26
     // spanArrayGOtoGOsynX[i] = i - (span_go_to_go_x / 2);
   }
 

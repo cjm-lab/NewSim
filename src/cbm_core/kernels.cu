@@ -22,51 +22,30 @@ __global__ void calcActivityGRGPU(float *vm, float *gKCa, float *gLeak,
                                   float *gISum, float eLeak, float eGOIn,
                                   float gAMPAInc, float threshBase,
                                   float threshMax, float threshDecay, uint32_t *GRap_packed) {
-  float tempThresh;
-  unsigned int tempAP;
+ unsigned int tempAP;
   // get the thread id of this thread
   int i = blockIdx.x * blockDim.x + threadIdx.x;
-
-  float tempGKCa = gKCa[i];
+  // float tempGKCa = gKCa[i];
   float tempV = vm[i];
-
-  // update leak conductance: was actually sigmoidal, faster to run as poly
-  gLeak[i] = 0.0000001021370733 * tempV * tempV * tempV * tempV +
-             0.00001636462 * tempV * tempV * tempV +
-             0.00113971219 * tempV * tempV + 0.038772 * tempV + 0.6234929;
-
-  // similar for NMDA conductance increment var (why only the increment var?)
-  gNMDAInc[i] = 0.00000011969 * tempV * tempV * tempV +
-                0.000089369 * tempV * tempV + 0.0151 * tempV + 0.7713;
-
-  // nmda conductance update
-  gNMDA[i] = gNMDAInc[i] * gAMPAInc * apMFtoGR[i] + gNMDA[i] * 0.9672;
-
-  // use conductances to update voltage
-  tempV = tempV + gLeak[i] * (eLeak - tempV) - gESum[i] * tempV -
-          gNMDA[i] * tempV + gISum[i] * (eGOIn - tempV);
-  // reset voltage to thresh if larger
-  if (tempV > threshMax)
-    tempV = threshMax;
-
-  // update thresh
-  tempThresh = thresh[i] + (threshBase - thresh[i]) * threshDecay;
-  // decide if we spiked or not
-  tempAP = tempV > tempThresh;
-  // reset thresh if above max
-  thresh[i] = tempAP * threshMax + (!tempAP) * tempThresh;
-
-  // these were experimental K and Ca conductances, should be deprecated
-  tempGKCa = tempGKCa * 0.9999f;
-  gKCa[i] = tempAP * (tempGKCa + 0.000f) + (!tempAP) * tempGKCa;
-
+  // Update MF and GO conductances
+  gNMDA[i] *= 0.96078943;          // Mike gEDecay
+  gNMDA[i] += apMFtoGR[i] *  0.07;    // Mike gEConst    original .015 not big enough
+  gLeak[i] *= 0.96078943;         // Mike gIDecay
+  gLeak[i] += gISum[i] * .085;       // Mike gIConst       origninal .06 too big?
+  //float tempgK = (gKCa[i]*gKCa[i]*gKCa[i]*gKCa[i]);
+  tempV += (((gKCa[i]*gKCa[i]*gKCa[i]*gKCa[i]) + gLeak[i] + .1) * (-70 - tempV)) - (gNMDA[i] * tempV) + (gISum[i] * (-80 - tempV)); // Mike gLeak = ,1
+  // Spike?
+  tempAP = tempV > thresh[i];               // Mike Threshmax
+   // update threshold
+  thresh[i] = (tempAP * 0) + (!tempAP * (-40 - thresh[i]) * 0.283468689); //Mike Threshmax = 0 ThreshBase, ThreshDecay
+  // update calcium activated potassium
+  gKCa[i] = tempAP * (((1-gKCa[i]) * .08)) + (!tempAP) * 0.994; // Mike gKCaConst, gKCaDecay
   // update spike buf
   apBuf[i] = (apBuf[i] << 1) | tempAP;
   // send local vars to global pointers
   apOutGR[i] = tempAP;
   apGR[i] = tempAP;
   vm[i] = tempV;
-  
   // fill bitpacked apGR array
   // need to double check this works
   uint32_t packedGRaps = __ballot_sync(0xFFFFFFFF, tempAP);
@@ -287,7 +266,8 @@ __global__ void updateGRInOPGPU(unsigned int inNLoads, uint32_t *apIn,
       gSpillover[index] * 0.99 + dynamicSpillAmp[index] * tempApInSum;
 
   // combine direct and spillover conductances
-  gSum[index] = gDirect[index] + gSpillover[index];
+  // gSum[index] = gDirect[index] + gSpillover[index];
+  gSum[index] = 1.0 * tempApInSum;
 }
 
 __global__ void updateGOGRDepressionInOPGPU(unsigned int inNLoads,
