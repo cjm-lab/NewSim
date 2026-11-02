@@ -7,6 +7,8 @@
 #include "gui.h" /* tenuous inclide at best :pogO: */
 #include "logger.h"
 #include "red_nucleus.h"
+#include <cstdint>
+#include <cstring>
 //#include<iostream>
 //#include<fstream>
 
@@ -1151,7 +1153,7 @@ void Control::newRasters(int16_t task, int16_t bin){
       if (!rf_names[j].empty()) {  // these rasters are being saved
         //std::cout << " just switch (which cell type\n";
         switch (j) {
-          case 0:  //mfs
+          case 0:{  //mfs
               mfNewRasters[mfCount] = int16_t(-1);
               mfNewRasters[mfCount+1] = bin;
               mfCount += 2;
@@ -1162,18 +1164,50 @@ void Control::newRasters(int16_t task, int16_t bin){
               }
             }
             break;
-          case 1: // granule cells 
-            grNewRasters[grCount] = int32_t(-1);
-            grNewRasters[grCount+1] = static_cast<int32_t>(bin);
-            grCount += 2;
-            for (int32_t i =0;i<rast_cell_nums[1];i++){
-              if (cell_spikes[1][i]){
-                grNewRasters[grCount]=i;
-                grCount +=1;	
-              }	
+          }
+          case 1:{ // granule cells 
+
+            grNewRasters[grCount++] = -1;
+            grNewRasters[grCount++] = static_cast<int32_t>(bin);
+
+            const uint8_t* const begin = cell_spikes[1];
+            const uint8_t* current = begin;
+            const uint8_t* const end =
+                begin + static_cast<std::size_t>(rast_cell_nums[1]);
+
+            while (current < end)
+            {
+                const void* result = std::memchr(
+                    current,
+                    1,
+                    static_cast<std::size_t>(end - current)
+                );
+                if (result == nullptr)
+                    break;
+                current = static_cast<const uint8_t*>(result);
+                grNewRasters[grCount++] =
+                    static_cast<int32_t>(current - begin);
+                ++current;
             }
+
+            //////
+
+            // grNewRasters[grCount] = int32_t(-1);
+            // grNewRasters[grCount+1] = static_cast<int32_t>(bin);
+            // grCount += 2;
+            // for (int32_t i =0;i<rast_cell_nums[1];i++){
+            //   if (cell_spikes[1][i]){
+            //     grNewRasters[grCount]=i;
+            //     grCount +=1;
+            //     // maybe faster?
+            //     // grNewRasters[grCount]=i;
+            //     // grCount += cell_spikes[1][i];
+            //     // maybe not	
+            //   }	
+            // }
             break;
-          case 2:  // golgi cells
+          }
+          case 2:{  // golgi cells
             goNewRasters[goCount] = -1;
             goNewRasters[goCount+1] = bin;
             goCount += 2;
@@ -1184,7 +1218,8 @@ void Control::newRasters(int16_t task, int16_t bin){
               }
             }
             break;
-          case 3: // basket cells
+          }
+          case 3:{ // basket cells
             bcNewRasters[bcCount] = -1;
             bcNewRasters[bcCount+1] = bin;
             bcCount += 2;
@@ -1195,7 +1230,8 @@ void Control::newRasters(int16_t task, int16_t bin){
               }
             }	
             break;
-          case 4: // stellate cells
+          }
+          case 4:{ // stellate cells
             scNewRasters[scCount] = -1;
             scNewRasters[scCount+1] = bin;
             scCount += 2;
@@ -1206,7 +1242,8 @@ void Control::newRasters(int16_t task, int16_t bin){
               }
             }	
             break;
-          case 5: // Purkinje cells
+          }
+          case 5:{ // Purkinje cells
             pcNewRasters[pcCount] = -1;
             pcNewRasters[pcCount+1] = bin;
             pcCount += 2;
@@ -1217,7 +1254,8 @@ void Control::newRasters(int16_t task, int16_t bin){
               }	
             }
             break;
-          case 6: // IO
+          }
+          case 6:{ // IO
             //std::cout << " case 6 IO neurons\n";
             ioNewRasters[ioCount] = -1;
             ioNewRasters[ioCount+1] = bin;
@@ -1231,7 +1269,8 @@ void Control::newRasters(int16_t task, int16_t bin){
             }
             //std::cout << " just before break in case 6\n";
             break;
-          case 7: // Nucleus cells
+          }
+          case 7:{ // Nucleus cells
             ncNewRasters[ncCount] = int16_t(-1);
             ncNewRasters[ncCount+1] = bin;
             ncCount += 2;
@@ -1242,6 +1281,7 @@ void Control::newRasters(int16_t task, int16_t bin){
               }	
             }  
             break;
+          }
         } // end of switch
         //std::cout << " end of if about which cells (case)\n";
       } // end these cells are being saved

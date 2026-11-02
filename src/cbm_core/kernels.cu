@@ -22,31 +22,79 @@ __global__ void calcActivityGRGPU(float *vm, float *gKCa, float *gLeak,
                                   float *gISum, float eLeak, float eGOIn,
                                   float gAMPAInc, float threshBase,
                                   float threshMax, float threshDecay, uint32_t *GRap_packed) {
- unsigned int tempAP;
-  // get the thread id of this thread
-  int i = blockIdx.x * blockDim.x + threadIdx.x;
-  // float tempGKCa = gKCa[i];
-  float tempV = vm[i];
-  // Update MF and GO conductances
-  gNMDA[i] *= 0.96078943;          // Mike gEDecay
-  gNMDA[i] += apMFtoGR[i] *  0.07;    // Mike gEConst    original .015 not big enough
-  gLeak[i] *= 0.96078943;         // Mike gIDecay
-  gLeak[i] += gISum[i] * .085;       // Mike gIConst       origninal .06 too big?
-  //float tempgK = (gKCa[i]*gKCa[i]*gKCa[i]*gKCa[i]);
-  tempV += (((gKCa[i]*gKCa[i]*gKCa[i]*gKCa[i]) + gLeak[i] + .1) * (-70 - tempV)) - (gNMDA[i] * tempV) + (gISum[i] * (-80 - tempV)); // Mike gLeak = ,1
-  // Spike?
-  tempAP = tempV > thresh[i];               // Mike Threshmax
-   // update threshold
-  thresh[i] = (tempAP * 0) + (!tempAP * (-40 - thresh[i]) * 0.283468689); //Mike Threshmax = 0 ThreshBase, ThreshDecay
-  // update calcium activated potassium
-  gKCa[i] = tempAP * (((1-gKCa[i]) * .08)) + (!tempAP) * 0.994; // Mike gKCaConst, gKCaDecay
-  // update spike buf
-  apBuf[i] = (apBuf[i] << 1) | tempAP;
-  // send local vars to global pointers
-  apOutGR[i] = tempAP;
-  apGR[i] = tempAP;
-  vm[i] = tempV;
-  // fill bitpacked apGR array
+ // Joe granule cell
+	float tempThresh;
+	unsigned int tempAP;
+
+	int i = blockIdx.x * blockDim.x + threadIdx.x;
+
+	float tempGKCa = gKCa[i];
+	float tempV = vm[i];
+
+	gLeak[i] = 0.0000001021370733 * tempV * tempV * tempV * tempV
+	   		 + 0.00001636462 * tempV * tempV * tempV
+			 + 0.00113971219 * tempV * tempV
+			 + 0.038772 * tempV
+			 + 0.6234929;
+	
+	
+	gNMDAInc[i] = 0.00000011969 * tempV * tempV * tempV
+	   			+ 0.000089369 * tempV * tempV
+				+ 0.0151 * tempV
+				+ 0.7713;
+
+	gNMDA[i] = gNMDAInc[i] * gAMPAInc * apMFtoGR[i] + gNMDA[i] * 0.9672;
+
+
+	tempV = tempV + gLeak[i] * (eLeak - tempV) - gESum[i] * tempV 
+	   	  - gNMDA[i] * tempV + gISum[i] * (eGOIn - tempV); 
+
+	if (tempV > threshMax) tempV = threshMax;
+
+	tempThresh = thresh[i] + (threshBase - thresh[i]) * threshDecay;
+	tempAP 	   = tempV > tempThresh;
+	thresh[i]  = tempAP * threshMax + (!tempAP) * tempThresh;
+
+	tempGKCa = tempGKCa * 0.9999f; 
+	gKCa[i] = tempAP * (tempGKCa + 0.000f) + (!tempAP) * tempGKCa;
+
+	apBuf[i]   = (apBuf[i] << 1) | tempAP;
+	apOutGR[i] = tempAP;
+	apGR[i]    = tempAP;
+	vm[i]      = tempV;
+
+ 
+ // Mike IAF granule cell
+  //                                   unsigned int tempAP;
+  // // get the thread id of this thread
+  // int i = blockIdx.x * blockDim.x + threadIdx.x;
+  // // float tempGKCa = gKCa[i];
+  // float tempV = vm[i];
+  // // Update MF and GO conductances
+  // gNMDA[i] *= 0.96078943;          // Mike gEDecay
+  // gNMDA[i] += apMFtoGR[i] *  0.015;    // Mike gEConst    original .015 not big enough
+  // gLeak[i] *= 0.96078943;         // Mike gIDecay
+  // gLeak[i] += gISum[i] * .085;       // Mike gIConst       origninal .06 too big?
+  // //float tempgK = (gKCa[i]*gKCa[i]*gKCa[i]*gKCa[i]);
+  // tempV += (((gKCa[i]*gKCa[i]*gKCa[i]*gKCa[i]) + gLeak[i] + .1) * (-70 - tempV)) - (gNMDA[i] * tempV) + (gISum[i] * (-80 - tempV)); // Mike gLeak = ,1
+  // // Spike?
+  // tempAP = tempV > thresh[i];               // Mike Threshmax
+  // // update threshold
+  // //thresh[i] = (tempAP * 0) + (!tempAP * (-40 - thresh[i]) * 0.283468689); //Mike Threshmax = 0 ThreshBase, ThreshDecay
+  // if (tempAP) {    // update calcium activated potassium
+  //   thresh[i] = 0.0f; // threshMax is 0
+  //   gKCa[i] += (1.0f - gKCa[i]) * 0.07f;   // Mike gKCaConst, gKCaDecay
+  // } else {
+  //   thresh[i] += (-40 - thresh[i]) * 0.283468689;
+  //   gKCa[i] *= 0.999f;
+  // } 
+  // // update spike buf
+  // apBuf[i] = (apBuf[i] << 1) | tempAP;
+  // // send local vars to global pointers
+  // apOutGR[i] = tempAP;
+  // apGR[i] = tempAP;
+  // vm[i] = tempV;
+  // // fill bitpacked apGR array
   // need to double check this works
   uint32_t packedGRaps = __ballot_sync(0xFFFFFFFF, tempAP);
   if ((i % 32) == 0) {

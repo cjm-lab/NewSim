@@ -153,7 +153,7 @@ float weightScale = 1.0;
 float rawGRGOW = 0.0007;
 
 float rawMFGOW = 0.0056 * MFtoGOHomeo; //0.0056 0.0035; // Mike June26
-float gogoW = 0.01 * GotoGoHomeo;
+float gogoW = 0.018 * GotoGoHomeo;
 float gIncGRtoGO = 0.0003;
 
 float gogrW = 0.015 * GotogrHomeo;
